@@ -1,0 +1,14 @@
+build/
+.vscode/
+CMakeLists.txt.user
+*.user
+*.pro.user
+*.qtc
+*.qtcsettings.cmake
+*.qtcsettings
+*.DS_Store
+*.swp
+*.swo
+*.log
+prompt.txt
+note.txt
