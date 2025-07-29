@@ -1,8 +1,7 @@
 <p align="center">
   <img src="logo_watersn.png" alt="WaterSN Logo" width="180"/>
 </p>
-
-# WaterSN
+<h1 align="center">WaterSN</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/C%2B%2B-17-blue?logo=c%2B%2B&logoColor=white" alt="C++17"/>
