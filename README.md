@@ -62,4 +62,4 @@
 MIT License
 
 ---
-<p align="center"><i>Made with ❤️ for water management professionals</i></p>
+<p align="center"><i>Made with ❤️ by gayensis for water management professionals</i></p>
