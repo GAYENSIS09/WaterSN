@@ -1,0 +1,24 @@
+pour les promptes suivant tu sera charger de creer le disign et le logo de WaterSN
+base toi sur les logicielle ded gestion d'eau et veiller a ce qu'il soit uniforme 
+-- une interface de connexion sera ouvert lors de l'ouverture de l'application 
+ {
+    un champ pour le mot de passe et pour l'email seront disponible avec un btn de confirmation,
+    on aura l'option reinitialiser un mot de passe qui lors
+    du click nous dirige vers la page de reinitialisation avec les champs classiques 
+    comme l'email .... qui permetra . un controle de saisit strict doit etre faite pour 
+    la validation des champs lors de la connection et de la reinitialisation
+ }
+-- pour le processes de reinitialisation
+ {
+    apres que l'email soit renseignee on doit cerifier si c"est correcte 
+    et bien present dans la base de donnee si c'est le cas , le system genere et envoit un 
+    mot de passe qui sera le nouveau mot de passe donc tu sera charger de sa mise a jour
+    dans la base de donnee puis ce mot de passe permetra d'ouvrir la connexion a cette utilisateur suite a sont envoie 
+    au mail indiquer si la connetivite pose probleme , une fenetre de manque de connection doit s'aficher 
+    lors de l'envoie de message via email . de plus lors de l'envoie un cercle de chargement doit s'afficher 
+    et uen fenetre s'ouvre quand le mail est envoyer pour le confirmer avec un btn retour a la page 
+    de connexion pour ressayer le mot de passe  . dans la page d'envoie un btn reenvoyer doit etre disponible 
+    pour permettre de renvoyer le mail avec le meme process qui se repete
+ } 
+
+un utilisateur par defaut doit etre inserer dans la base de donne lorsque l'aplicatio marche pour la premiere fois et c'est,{ watersn_admin avec mot de passe WaterSN2025!2026} comme avec laravel

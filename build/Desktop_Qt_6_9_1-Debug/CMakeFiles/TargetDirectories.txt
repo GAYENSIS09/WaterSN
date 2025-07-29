@@ -1,0 +1,9 @@
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/WaterSN.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/edit_cache.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/rebuild_cache.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/list_install_components.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/install.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/install/local.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/install/strip.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/WaterSN_autogen_timestamp_deps.dir
+/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug/CMakeFiles/WaterSN_autogen.dir

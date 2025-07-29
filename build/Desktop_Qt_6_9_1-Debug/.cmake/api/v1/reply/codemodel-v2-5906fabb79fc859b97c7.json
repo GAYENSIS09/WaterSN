@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-44a937a8422818715c26.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "WaterSN",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "WaterSN::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-WaterSN-Debug-49a78c420da48bfbe63d.json",
+					"name" : "WaterSN",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "WaterSN_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-WaterSN_autogen-Debug-cc4c62c5fd71d4508fad.json",
+					"name" : "WaterSN_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "WaterSN_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-WaterSN_autogen_timestamp_deps-Debug-f010d3dd9a3b979a2701.json",
+					"name" : "WaterSN_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug",
+		"source" : "/home/gayensis/Documents/WaterSN"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

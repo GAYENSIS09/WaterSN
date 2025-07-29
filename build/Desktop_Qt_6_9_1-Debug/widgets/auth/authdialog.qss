@@ -1,0 +1,74 @@
+QPushButton#forgotButton {
+    background: transparent;
+    color: #ffd23f;
+    border: none;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: underline;
+    margin-top: 2px;
+    margin-bottom: 0px;
+}
+QPushButton#forgotButton:hover {
+    color: #ffe066;
+    text-decoration: underline;
+}
+/* Fond principal */
+QDialog {
+    background: #5d7c72;
+}
+
+QFrame#cardFrame {
+    background: #39544c;
+    border-radius: 16px;
+    box-shadow: 0px 12px 36px rgba(0,0,0,0.18);
+    min-width: 340px;
+    min-height: 180px;
+}
+
+QLabel#titleLabel {
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+QLabel#errorLabel {
+    color: #ff4444;
+    font-size: 13px;
+    font-weight: bold;
+    padding: 2px 0 2px 0;
+    border-radius: 4px;
+    background: transparent;
+}
+
+QLineEdit {
+    background: #fffbe8;
+    border: 2px solid #e0e0c0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 15px;
+    color: #39544c;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+}
+QLineEdit:focus {
+    border: 2px solid #ffd23f;
+    background: #fffde4;
+}
+
+QPushButton#loginButton {
+    background: #ffd23f;
+    color: #39544c;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 17px;
+    padding: 10px 0;
+    margin-top: 6px;
+    margin-bottom: 2px;
+    box-shadow: 0px 2px 8px rgba(0,0,0,0.10);
+}
+QPushButton#loginButton:hover {
+    background: #ffe066;
+}

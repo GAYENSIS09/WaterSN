@@ -1,0 +1,3 @@
+#include "model/model.h"
+
+// ... implémentation éventuelle des méthodes liées aux entités ...
