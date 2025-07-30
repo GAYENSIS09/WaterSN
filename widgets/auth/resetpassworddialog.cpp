@@ -16,9 +16,10 @@
 #include "widgets/logowidget.h"
 
 ResetPasswordDialog::ResetPasswordDialog(QWidget* parent) : QDialog(parent) {
+    resize(890, 600); // Taille par défaut à l'ouverture (encore plus grande)
     setWindowTitle("Réinitialisation");
     setModal(true);
-    setFixedSize(420, 320);
+    // setFixedSize(420, 320); // Supprimé pour permettre le redimensionnement
 
     // Appliquer le QSS pour cohérence avec la page de connexion
     QFile styleFile("widgets/auth/resetpassworddialog.qss");
@@ -160,6 +161,16 @@ void ResetPasswordDialog::onEmailCheckFinished(bool found) {
         errorLabel->setVisible(true);
         return;
     }
+    // Récupérer nom et prénom du destinataire
+    QString nom, prenom;
+    QSqlQuery infoQuery;
+    infoQuery.prepare("SELECT nom, prenom FROM User WHERE email = :email");
+    infoQuery.bindValue(":email", emailEdit->text().trimmed());
+    if (infoQuery.exec() && infoQuery.next()) {
+        nom = infoQuery.value(0).toString();
+        prenom = infoQuery.value(1).toString();
+    }
+
     // Générer un code à 6 chiffres
     QString code = QString::number(QRandomGenerator::global()->bounded(100000, 999999));
     // Mettre à jour le mot de passe (hashé)
@@ -173,7 +184,35 @@ void ResetPasswordDialog::onEmailCheckFinished(bool found) {
     bool mailOk = false;
     if (updateOk) {
         QString subject = "Réinitialisation de votre mot de passe WaterSN";
-        QString body = QString("Votre nouveau mot de passe temporaire est : %1\nMerci de le changer après connexion.").arg(code);
+        // Corps HTML WaterSN avec couleurs du QSS
+        // Centrage vertical du container principal avec table layout (compatibilité clients mail)
+        QString body = QString(R"(
+        <body style='background:#547066;margin:0;padding:0;height:100vh;'>
+        <table width='100%%' height='100%%' cellpadding='0' cellspacing='0' border='0' style='min-height:100vh;'>
+        <tr>
+            <td align='center' valign='middle'>
+            <div style='font-family:Segoe UI,Arial,sans-serif;max-width:480px;border-radius:12px;box-shadow:0 2px 12px #3d554b44;background:#3d554b;padding:0;text-align:center;'>
+                <div style='background:#3d554b;border-radius:12px 12px 0 0;padding:24px 0 12px 0;text-align:center;'>
+                <span style='color:#547066;font-size:1.3em;font-weight:600;letter-spacing:1px;'>WaterSN</span>
+                </div>
+                <div style='padding:28px 28px 18px 28px;'>
+                <h2 style='color:#ffd23f;font-size:1.2em;margin:0 0 18px 0;text-align:left;'>Bonjour %1 %2,</h2>
+                <p style='font-size:1em;color:#fff;margin:0 0 18px 0;text-align:center;'>Vous avez demandé la réinitialisation de votre mot de passe WaterSN.</p>
+                <div style='background:#f8f3e7;border-radius:8px;padding:18px 0;margin:18px 0;text-align:center;'>
+                    <span style='color:#3d554b;font-size:1.4em;font-weight:bold;letter-spacing:2px;'>%4</span><br>
+                    <span style='color:#3d554b;font-size:0.98em;'>Votre mot de passe temporaire</span>
+                </div>
+                <p style='margin:18px 0 0 0;color:#fff;text-align:center;'>Merci de le changer après connexion pour la sécurité de votre compte.</p>
+                </div>
+                <div style='background:#547066;border-radius:0 0 12px 12px;padding:14px 0;text-align:center;font-size:0.95em;color:#ffd23f;'>
+                Ceci est un message automatique de <b>WaterSN</b>
+                </div>
+            </div>
+            </td>
+        </tr>
+        </table>
+        </body>
+        )").arg(prenom, nom, code);
         mailOk = Mail::sendMail(emailEdit->text().trimmed(), subject, body);
     }
     QTimer::singleShot(500, [this, mailOk]() {
@@ -184,7 +223,7 @@ void ResetPasswordDialog::onEmailCheckFinished(bool found) {
 void ResetPasswordDialog::onSendMailFinished(bool success) {
     setLoading(false);
     if (success) {
-        infoLabel->setText("Un nouveau mot de passe a été envoyé à votre adresse email.");
+        infoLabel->setText("Un nouveau mot de passe a été envoyé.");
         infoLabel->setVisible(true);
         resendButton->setVisible(true);
         QMessageBox::information(this, "Succès", "Mot de passe envoyé !");

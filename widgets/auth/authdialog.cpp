@@ -129,6 +129,7 @@ AuthDialog::AuthDialog(QWidget* parent)
 {
     ui = new Ui::AuthDialog;
     ui->setupUi(this);
+    resize(800, 650); // Taille par défaut à l'ouverture (encore plus grande)
     // Ajouter le logo en haut à droite de la fenêtre (hors carte centrale)
     LogoWidget* logo = new LogoWidget(this);
     logo->move(width() - logo->width() - 20, 20); // Décalage 20px du bord droit/haut
@@ -136,7 +137,7 @@ AuthDialog::AuthDialog(QWidget* parent)
     logo->show();
     setWindowTitle("Connexion à WaterSN");
     setModal(true);
-    setFixedSize(420, 320);
+    // setFixedSize(420, 320); // Supprimé pour permettre le redimensionnement
 
     // Appliquer le QSS
     qDebug() << "[AuthDialog] Current working dir:" << QDir::currentPath();

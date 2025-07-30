@@ -4,7 +4,6 @@ QDialog {
 QFrame#cardFrame {
     background: #3d554b;
     border-radius: 12px;
-    box-shadow: 0px 8px 32px rgba(0,0,0,0.12);
 }
 QLabel#titleLabel {
     color: #fff;

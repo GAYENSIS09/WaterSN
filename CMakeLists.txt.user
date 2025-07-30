@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 17.0.0, 2025-07-29T13:19:29. -->
+<!-- Written by QtCreator 17.0.0, 2025-07-30T02:47:40. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -104,17 +104,16 @@
     <value type="int" key="CMake.Configure.BaseEnvironment">2</value>
     <value type="bool" key="CMake.Configure.ClearSystemEnvironment">false</value>
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges"/>
-    <value type="QString" key="CMake.Initial.Parameters">-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
 -DCMAKE_PREFIX_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_GENERATOR:STRING=Ninja
 -DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_BUILD_TYPE:STRING=Debug
--DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool</value>
-    <value type="int" key="EnableQmlDebugging">0</value>
+-DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool
+-DCMAKE_GENERATOR:STRING=Ninja
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON</value>
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Debug</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
@@ -231,16 +230,16 @@
     <value type="int" key="CMake.Configure.BaseEnvironment">2</value>
     <value type="bool" key="CMake.Configure.ClearSystemEnvironment">false</value>
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges"/>
-    <value type="QString" key="CMake.Initial.Parameters">-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
 -DCMAKE_PREFIX_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_GENERATOR:STRING=Ninja
 -DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_BUILD_TYPE:STRING=Release
--DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool</value>
+-DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool
+-DCMAKE_GENERATOR:STRING=Ninja
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON</value>
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Release</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
@@ -337,16 +336,16 @@
     <value type="int" key="CMake.Configure.BaseEnvironment">2</value>
     <value type="bool" key="CMake.Configure.ClearSystemEnvironment">false</value>
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges"/>
-    <value type="QString" key="CMake.Initial.Parameters">-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
 -DCMAKE_PREFIX_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_GENERATOR:STRING=Ninja
 -DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo
--DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool</value>
+-DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool
+-DCMAKE_GENERATOR:STRING=Ninja
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON</value>
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-RelWithDebInfo</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">
@@ -443,16 +442,16 @@
     <value type="int" key="CMake.Configure.BaseEnvironment">2</value>
     <value type="bool" key="CMake.Configure.ClearSystemEnvironment">false</value>
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges"/>
-    <value type="QString" key="CMake.Initial.Parameters">-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
 -DCMAKE_PREFIX_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_GENERATOR:STRING=Ninja
 -DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo
--DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool</value>
+-DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool
+-DCMAKE_GENERATOR:STRING=Ninja
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON</value>
     <value type="int" key="EnableQmlDebugging">0</value>
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-Profile</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
@@ -550,16 +549,16 @@
     <value type="int" key="CMake.Configure.BaseEnvironment">2</value>
     <value type="bool" key="CMake.Configure.ClearSystemEnvironment">false</value>
     <valuelist type="QVariantList" key="CMake.Configure.UserEnvironmentChanges"/>
-    <value type="QString" key="CMake.Initial.Parameters">-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
--DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
+    <value type="QString" key="CMake.Initial.Parameters">-DCMAKE_C_COMPILER:FILEPATH=%{Compiler:Executable:C}
 -DCMAKE_PREFIX_PATH:PATH=%{Qt:QT_INSTALL_PREFIX}
--DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
--DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
--DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON
--DCMAKE_GENERATOR:STRING=Ninja
 -DCMAKE_PROJECT_INCLUDE_BEFORE:FILEPATH=%{BuildConfig:BuildDirectory:NativeFilePath}/.qtc/package-manager/auto-setup.cmake
 -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
--DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool</value>
+-DCMAKE_CXX_COMPILER:FILEPATH=%{Compiler:Executable:Cxx}
+-DCMAKE_CXX_FLAGS_INIT:STRING=%{Qt:QML_DEBUG_FLAG}
+-DQT_MAINTENANCE_TOOL:FILEPATH=/home/gayensis/Qt/MaintenanceTool
+-DCMAKE_GENERATOR:STRING=Ninja
+-DQT_QMAKE_EXECUTABLE:FILEPATH=%{Qt:qmakeExecutable}
+-DCMAKE_COLOR_DIAGNOSTICS:BOOL=ON</value>
     <value type="QString" key="ProjectExplorer.BuildConfiguration.BuildDirectory">/home/gayensis/Documents/WaterSN/build/Desktop_Qt_6_9_1-MinSizeRel</value>
     <valuemap type="QVariantMap" key="ProjectExplorer.BuildConfiguration.BuildStepList.0">
      <valuemap type="QVariantMap" key="ProjectExplorer.BuildStepList.Step.0">

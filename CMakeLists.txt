@@ -1,3 +1,5 @@
+# Copier le fichier .env dans le dossier de build à chaque génération
+configure_file(${CMAKE_SOURCE_DIR}/.env ${CMAKE_BINARY_DIR}/.env COPYONLY)
 # Copier le logo dans le dossier de build à chaque compilation
 configure_file(${CMAKE_SOURCE_DIR}/logo_watersn.png ${CMAKE_BINARY_DIR}/logo_watersn.png COPYONLY)
 # Copie automatique des QSS dans le dossier de build
@@ -5,9 +7,15 @@ configure_file(widgets/auth/authdialog.qss widgets/auth/authdialog.qss COPYONLY)
 configure_file(widgets/auth/resetpassworddialog.qss widgets/auth/resetpassworddialog.qss COPYONLY)
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
+
 cmake_minimum_required(VERSION 3.16)
 
 project(WaterSN VERSION 0.1 LANGUAGES CXX)
+
+# Forcer le type de build à Debug par défaut si non défini
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -32,7 +40,9 @@ set(PROJECT_SOURCES
     include/model/model.h
     # Widgets
     widgets/dashboard/dashboardwidget.cpp
+    widgets/dashboard/dashboardchartwidget.cpp
     include/widgets/dashboardwidget.h
+    include/widgets/dashboardchartwidget.h
     widgets/facture/facturewidget.cpp
     include/widgets/facturewidget.h
     widgets/facture/factureformdialog.cpp
@@ -81,6 +91,12 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
     )
     target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::Network)
+    target_include_directories(WaterSN PRIVATE
+        $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Widgets,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Sql,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Charts,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Network,INTERFACE_INCLUDE_DIRECTORIES>
+    )
 else()
     if(ANDROID)
         add_library(WaterSN SHARED

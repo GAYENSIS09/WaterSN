@@ -1,3 +1,6 @@
+#include <QFile>
+#include <QTextStream>
+#include <cstdlib>
 
 #include <QApplication>
 #include <QMainWindow>
@@ -13,6 +16,28 @@
 #include "auth.h"
 #include "utils/mail.h"
 
+// Fonction utilitaire pour charger les variables d'un fichier .env
+void chargerDotEnv(const QString& chemin)
+{
+    QFile file(chemin);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return;
+    QTextStream in(&file);
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.startsWith("#") || !line.contains("="))
+            continue;
+        QStringList parts = line.split('=', Qt::KeepEmptyParts);
+        if (parts.size() < 2)
+            continue;
+        QByteArray key = parts[0].trimmed().toUtf8();
+        QByteArray value = parts.mid(1).join("=").trimmed().toUtf8();
+        if (qgetenv(key.constData()).isEmpty()) {
+            qputenv(key.constData(), value);
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -24,13 +49,22 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Configuration de l'expéditeur SMTP WaterSN
-    // À personnaliser avec le vrai mot de passe du compte !
+    // Charger automatiquement le .env du dossier de build ou du dossier source
+    chargerDotEnv(QCoreApplication::applicationDirPath() + "/.env");
+    chargerDotEnv(QCoreApplication::applicationDirPath() + "/../.env");
+
+    // Configuration SMTP Mailjet via variables d'environnement
+    QString mailjetUser = QString::fromUtf8(qgetenv("MAILJET_USER"));
+    QString mailjetPass = QString::fromUtf8(qgetenv("MAILJET_PASS"));
+    if (mailjetUser.isEmpty() || mailjetPass.isEmpty()) {
+        QMessageBox::critical(nullptr, "Erreur Mailjet", "Les identifiants Mailjet ne sont pas définis dans les variables d'environnement (.env non trouvé ou incomplet).");
+        return 1;
+    }
     Mail::setSmtpConfig(
-        "mail.betaenergyafrique.com", // Serveur SMTP
-        465,                           // Port SSL
-        "mor@betaenergyafrique.com",  // Adresse expéditeur
-        "Yw2v,Yd;^NH~"      // Mot de passe du compte mail
+        "in-v3.mailjet.com",
+        587,
+        mailjetUser,
+        mailjetPass
     );
 
     // Insérer l'utilisateur par défaut si besoin
@@ -67,17 +101,10 @@ int main(int argc, char *argv[])
     controller.ajouterFacture(Facture(1, "C001", 1, 1000, 12));
     controller.ajouterFacture(Facture(2, "C002", 2, 500, 8));
 
-    // Fenêtre principale avec onglets
+    // Fenêtre principale : afficher uniquement le Dashboard
     QMainWindow mainWindow;
-    QTabWidget* tabs = new QTabWidget;
-    // Dashboard
     DashboardWidget* dashboard = new DashboardWidget(&controller);
-    tabs->addTab(dashboard, "Dashboard");
-    // Factures
-    FactureWidget* factureWidget = new FactureWidget(&controller);
-    tabs->addTab(factureWidget, "Factures");
-    // (Vous pourrez ajouter d'autres widgets/pages ici)
-    mainWindow.setCentralWidget(tabs);
+    mainWindow.setCentralWidget(dashboard);
     mainWindow.setWindowTitle("Gestion Forage - WaterSN");
     mainWindow.resize(900, 600);
     mainWindow.show();

@@ -1,3 +1,5 @@
+# Fichiers d'environnement locaux
+.env
 build/
 .vscode/
 CMakeLists.txt.user

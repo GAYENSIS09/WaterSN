@@ -2,27 +2,45 @@
 #define DASHBOARDWIDGET_H
 
 #include <QWidget>
-#include <QtCharts/QChartView>
-#include <QtCharts/QBarSeries>
-#include <QtCharts/QBarSet>
-#include <QtCharts/QBarCategoryAxis>
-#include <QtCharts/QValueAxis>
+#include <QListWidget>
+#include <QStackedWidget>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+
+#include <QLineEdit>
+#include <QComboBox>
 #include <QLabel>
 #include "controller/controller.h"
 
-class DashboardWidget : public QWidget {
+#include "widgets/dashboardchartwidget.h"
+
+
+
+class DashboardWidget : public QWidget
+{
     Q_OBJECT
 public:
-    explicit DashboardWidget(Controller* controller, QWidget* parent = nullptr);
-    void updateStats();
-    void updateCharts();
+    explicit DashboardWidget(Controller* controller, QWidget *parent = nullptr);
+    void applyFilters();
 
 private:
     Controller* m_controller;
-    QChartView* m_chartView;
-    QLabel* m_nbClientsLabel;
-    QLabel* m_totalFactureLabel;
-    QLabel* m_nbImpayeLabel;
+    QListWidget* navigationMenu;
+    QStackedWidget* contentStack;
+    QWidget* kpiWidget; // Section KPI
+    QLabel* kpiAbonnes;
+    QLabel* kpiTotalFacture;
+    QLabel* kpiImpayes;
+    QLabel* kpiAlertes;
+    DashboardChartWidget* chartWidget; // Section graphique
+    QListWidget* alertListWidget; // Section alertes
+    QLineEdit* searchLineEdit;
+    QComboBox* collectiviteCombo;
+    QComboBox* periodeCombo;
+    QComboBox* etatCompteurCombo;
+    QString currentNom, currentCollectivite, currentPeriode, currentEtat;
+    void updateAlerts();
+    void updateKpi();
 };
 
 #endif // DASHBOARDWIDGET_H
