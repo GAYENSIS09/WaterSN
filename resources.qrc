@@ -2,4 +2,16 @@
   <qresource prefix="/images">
     <file>logo_watersn.png</file>
   </qresource>
+  <qresource prefix="">
+    <file>icons/material/dashboard.svg</file>
+    <file>icons/material/group.svg</file>
+    <file>icons/material/speedometer.svg</file>
+    <file>icons/material/settings.svg</file>
+    <file>icons/material/visibility.svg</file>
+    <file>icons/material/warning.svg</file>
+    <file>icons/material/money_off.svg</file>
+    <file>icons/material/water_drop.svg</file>
+    <file>icons/material/block.svg</file>
+    <file>icons/material/info.svg</file>
+  </qresource>
 </RCC>

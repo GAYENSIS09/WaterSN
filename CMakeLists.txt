@@ -2,6 +2,17 @@
 configure_file(${CMAKE_SOURCE_DIR}/.env ${CMAKE_BINARY_DIR}/.env COPYONLY)
 # Copier le logo dans le dossier de build à chaque compilation
 configure_file(${CMAKE_SOURCE_DIR}/logo_watersn.png ${CMAKE_BINARY_DIR}/logo_watersn.png COPYONLY)
+# Copier les icônes SVG Material Design dans le dossier de build
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/dashboard.svg ${CMAKE_BINARY_DIR}/icons/material/dashboard.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/group.svg ${CMAKE_BINARY_DIR}/icons/material/group.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/speedometer.svg ${CMAKE_BINARY_DIR}/icons/material/speedometer.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/settings.svg ${CMAKE_BINARY_DIR}/icons/material/settings.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/visibility.svg ${CMAKE_BINARY_DIR}/icons/material/visibility.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/warning.svg ${CMAKE_BINARY_DIR}/icons/material/warning.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/money_off.svg ${CMAKE_BINARY_DIR}/icons/material/money_off.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/water_drop.svg ${CMAKE_BINARY_DIR}/icons/material/water_drop.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/block.svg ${CMAKE_BINARY_DIR}/icons/material/block.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/info.svg ${CMAKE_BINARY_DIR}/icons/material/info.svg COPYONLY)
 # Copie automatique des QSS dans le dossier de build
 configure_file(widgets/auth/authdialog.qss widgets/auth/authdialog.qss COPYONLY)
 configure_file(widgets/auth/resetpassworddialog.qss widgets/auth/resetpassworddialog.qss COPYONLY)
@@ -24,8 +35,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Charts Sql Network)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Charts Sql Network)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Charts Sql Network Svg)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Charts Sql Network Svg)
 set(PROJECT_SOURCES
     main.cpp
     resources.qrc
@@ -90,7 +101,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
     )
-    target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::Network)
+    target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::Svg)
     target_include_directories(WaterSN PRIVATE
         $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Widgets,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Sql,INTERFACE_INCLUDE_DIRECTORIES>
@@ -102,13 +113,13 @@ else()
         add_library(WaterSN SHARED
             ${PROJECT_SOURCES}
         )
-        target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts)
+        target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Svg)
 target_precompile_headers(WaterSN PRIVATE include/pch.h)
     else()
         add_executable(WaterSN
             ${PROJECT_SOURCES}
         )
-        target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts)
+        target_link_libraries(WaterSN PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Svg)
     endif()
 endif()
 

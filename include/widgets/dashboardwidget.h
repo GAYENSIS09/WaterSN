@@ -21,6 +21,7 @@ class DashboardWidget : public QWidget
     Q_OBJECT
 public:
     explicit DashboardWidget(Controller* controller, QWidget *parent = nullptr);
+    ~DashboardWidget() override;
     void applyFilters();
 
 private:
