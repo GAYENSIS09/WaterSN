@@ -19,29 +19,42 @@
 class DashboardWidget : public QWidget
 {
     Q_OBJECT
+
 public:
     explicit DashboardWidget(Controller* controller, QWidget *parent = nullptr);
-    ~DashboardWidget() override;
-    void applyFilters();
+    ~DashboardWidget();
 
-private:
-    Controller* m_controller;
-    QListWidget* navigationMenu;
-    QStackedWidget* contentStack;
-    QWidget* kpiWidget; // Section KPI
-    QLabel* kpiAbonnes;
-    QLabel* kpiTotalFacture;
-    QLabel* kpiImpayes;
-    QLabel* kpiAlertes;
-    DashboardChartWidget* chartWidget; // Section graphique
-    QListWidget* alertListWidget; // Section alertes
-    QLineEdit* searchLineEdit;
-    QComboBox* collectiviteCombo;
-    QComboBox* periodeCombo;
-    QComboBox* etatCompteurCombo;
-    QString currentNom, currentCollectivite, currentPeriode, currentEtat;
+    void applyFilters();
     void updateAlerts();
     void updateKpi();
+
+protected:
+    void showEvent(QShowEvent* event) override;
+
+    // ... autres membres ...
+
+private:
+    Controller* m_controller = nullptr;
+    QStackedWidget* contentStack = nullptr;
+    QLineEdit* searchLineEdit = nullptr;
+    QComboBox* collectiviteCombo = nullptr;
+    QComboBox* periodeCombo = nullptr;
+    QComboBox* etatCompteurCombo = nullptr;
+    QLabel* kpiAbonnes = nullptr;
+    QLabel* kpiTotalFacture = nullptr;
+    QLabel* kpiImpayes = nullptr;
+    QLabel* kpiAlertes = nullptr;
+    QListWidget* alertListWidget = nullptr;
+    QWidget* kpiWidget = nullptr;
+    QString currentNom;
+    QString currentCollectivite;
+    QString currentPeriode;
+    QString currentEtat;
+    QWidget* chartWidget = nullptr;
+    // Ajout pour la page détail alertes
+    QWidget* alertDetailPage = nullptr;
+    QListWidget* alertDetailList = nullptr;
+    // ... autres membres ...
 };
 
 #endif // DASHBOARDWIDGET_H

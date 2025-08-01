@@ -58,10 +58,12 @@ set(PROJECT_SOURCES
     include/widgets/facturewidget.h
     widgets/facture/factureformdialog.cpp
     include/widgets/factureformdialog.h
-    widgets/client/clientwidget.cpp
-    include/widgets/clientwidget.h
+    widgets/client/clientswidget.cpp
+    include/widgets/clientswidget.h 
     widgets/client/clientformdialog.cpp
     include/widgets/clientformdialog.h
+    widgets/client/clientdetailwidget.cpp
+    include/widgets/clientdetailwidget.h
     widgets/compteur/compteurwidget.cpp
     include/widgets/compteurwidget.h
     widgets/compteur/compteurformdialog.cpp

@@ -3,6 +3,7 @@
 #include <QComboBox>
 #include "widgets/dashboardwidget.h"
 #include <QLabel>
+#include "widgets/clientswidget.h"
 #include <QIcon>
 #include <QPixmap>
 #include <QFrame>
@@ -12,10 +13,9 @@
 #include "widgets/dashboardchartwidget.h"
 #include <QPushButton>
 #include <QGraphicsDropShadowEffect>
-
+#include <QListWidget>
 #include <QButtonGroup>
 #include <QtSvg/QSvgRenderer>
-
 #include <QtCharts/QChartView>
 #include <QtCharts/QPieSeries>
 #include <QtCharts/QPieSlice>
@@ -28,113 +28,32 @@
 DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     // --- STYLE AVANCÉ POUR QComboBox (filtres) ---
     // (doit être appliqué après la création des QComboBox)
-    : QWidget(parent), m_controller(controller)
+    : QWidget(parent), m_controller(controller), contentStack(nullptr)
 {
     qDebug() << "[DashboardWidget] Construction en cours...";
     Q_ASSERT_X(m_controller != nullptr, "DashboardWidget", "Le pointeur Controller est nul !");
     qDebug() << "[DashboardWidget] Controller OK";
 
-    // (Header supprimé)
+    // Correction crash : la géométrie sera appliquée dans showEvent
+    this->setMinimumSize(900, 600);
+    qDebug() << "[DashboardWidget] Correction: taille minimale 900x600 (showEvent gère le resize)";
+   // (Header supprimé)
 
-    // --- ZONE CENTRALE (cardFrame avec graphes) ---
-    qDebug() << "[DashboardWidget] Initialisation cardFrame (zone centrale)";
-
-    // Vérification contentStack (si utilisé)
-    if (contentStack == nullptr) {
-        qWarning() << "[DashboardWidget] contentStack est nul !";
-    }
-
-    // --- MENU LATERAL HARMONISÉ (même fond que la page d'authentification) ---
-    QFrame* menuFrame = new QFrame;
-    Q_ASSERT(menuFrame != nullptr);
-    menuFrame->setFixedWidth(90);
-    menuFrame->setStyleSheet("background: #39544c; border: none; border-radius: 16px;");
-    QVBoxLayout* menuLayout = new QVBoxLayout(menuFrame);
-    menuLayout->setContentsMargins(0, 0, 0, 0);
-    menuLayout->setSpacing(0);
-    // Logo WaterSN en haut du menu (agrandi)
-    QLabel* logo = new QLabel;
-    Q_ASSERT(logo != nullptr);
-    QPixmap pixLogo("logo_watersn.png");
-    if (!pixLogo.isNull()) {
-        QPixmap roundedLogo(pixLogo.scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        QPixmap mask(80, 80);
-        mask.fill(Qt::transparent);
-        QPainter painter(&mask);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setBrush(Qt::white);
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(0, 0, 80, 80);
-        roundedLogo.setMask(mask.createMaskFromColor(Qt::transparent));
-        logo->setPixmap(roundedLogo);
-    } else {
-        logo->setText("🌊");
-    }
-    logo->setAlignment(Qt::AlignHCenter);
-    logo->setStyleSheet("margin-top: 36px; margin-bottom: 36px; background: transparent; border-radius: 40px; overflow: hidden;");
-    menuLayout->addWidget(logo);
-
-    // Boutons de navigation avec icônes (flat, blanc, effet actif)
-    QList<QPushButton*> navButtons;
-    QStringList navNames = {"Dashboard", "Clients", "Compteurs", "Paramètres"};
-    // Icônes Material Design SVG (téléchargeables via le terminal)
-    QStringList navIcons = {
-        ":/icons/material/dashboard.svg",
-        ":/icons/material/group.svg", // SVG de test
-        ":/icons/material/speedometer.svg",
-        ":/icons/material/settings.svg"
-    };
-
-    for (int i = 0; i < navNames.size(); ++i) {
-        QPushButton* btn = new QPushButton;
-        btn->setIcon(QIcon(navIcons[i]));
-        btn->setIconSize(QSize(30,30));
-        btn->setToolTip(navNames[i]);
-        btn->setCheckable(true);
-        btn->setStyleSheet("QPushButton { background: transparent; border: none; margin: 14px 0; color: #fff; border-radius: 12px; } QPushButton:checked { background: #ffd23f; color: #3d554b; border-radius: 12px; } QPushButton:hover { background: #ffe066; color: #3d554b; border-radius: 12px; }");
-        menuLayout->addWidget(btn);
-        navButtons << btn;
-    }
-    QButtonGroup* navGroup = new QButtonGroup(this);
-    Q_ASSERT(navGroup != nullptr);
-    navGroup->setExclusive(true);
-    for (int i = 0; i < navButtons.size(); ++i) {
-        navGroup->addButton(navButtons[i], i);
-    }
-    navButtons[0]->setChecked(true);
-    // Connexion navigation uniquement si contentStack est non nul
-    if (contentStack) {
-        connect(navGroup, &QButtonGroup::idClicked, contentStack, &QStackedWidget::setCurrentIndex);
-    } else {
-        qWarning() << "[DashboardWidget] Impossible de connecter la navigation : contentStack est nul !";
-    }
-    menuLayout->addStretch();
-
-
-
-    // Card centrale harmonisée (fond blanc, arrondi, ombre)
-    qDebug() << "[DashboardWidget] Création cardFrame";
-    QFrame* cardFrame = new QFrame;
-    Q_ASSERT(cardFrame != nullptr);
-    cardFrame->setObjectName("cardFrame");
-    cardFrame->setStyleSheet("background: #39544c; border-radius: 18px; border: none; box-shadow: 0 4px 24px rgba(0,0,0,0.10);");
-    // Largeur dynamique : occupe toute la largeur du scroll area
-    cardFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect;
-    shadow->setBlurRadius(24);
-    shadow->setOffset(0, 6);
-    shadow->setColor(QColor(0,0,0,40));
-    cardFrame->setGraphicsEffect(shadow);
-
-    QVBoxLayout* cardLayout = new QVBoxLayout(cardFrame);
-    Q_ASSERT(cardLayout != nullptr);
-    qDebug() << "[DashboardWidget] Layout cardFrame prêt";
-    cardLayout->setContentsMargins(32, 32, 32, 32);
-    cardLayout->setSpacing(24);
-
-    // Barre de filtres arrondie
+    // --- ZONE CENTRALE (QStackedWidget pour navigation multi-pages) ---
+    qDebug() << "[DashboardWidget] Initialisation contentStack (QStackedWidget navigation)";
+    contentStack = new QStackedWidget(this);
+    Q_ASSERT(contentStack != nullptr);
+    // Page 0 : Dashboard (page principale)
+    QWidget* dashboardPage = new QWidget;
+    // Création d'un widget de contenu pour le scroll
+    QWidget* dashboardContent = new QWidget;
+    QVBoxLayout* dashboardLayout = new QVBoxLayout(dashboardContent);
+    dashboardLayout->setContentsMargins(0,0,0,0);
+    dashboardLayout->setSpacing(0);
+    // Création du widget de filtres (doit être fait avant l'ajout au layout)
     qDebug() << "[DashboardWidget] Création filterWidget";
     QWidget* filterWidget = new QWidget;
+    qDebug() << "[DashboardWidget] filterWidget créé, sizeHint:" << filterWidget->sizeHint();
     Q_ASSERT(filterWidget != nullptr);
     filterWidget->setStyleSheet("background: #31463f; border-radius: 12px; padding: 12px 18px;");
     QHBoxLayout* filterLayout = new QHBoxLayout(filterWidget);
@@ -165,8 +84,222 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     collectiviteCombo->setStyleSheet(comboStyle);
     periodeCombo->setStyleSheet(comboStyle);
     etatCompteurCombo->setStyleSheet(comboStyle);
-    cardLayout->addWidget(filterWidget);
-    qDebug() << "[DashboardWidget] filterWidget ajouté à cardLayout";
+    qDebug() << "[DashboardWidget] filterWidget prêt à être ajouté au layout";
+    // Encapsuler le contenu dashboard dans un QScrollArea
+    QScrollArea* dashboardScroll = new QScrollArea(dashboardPage);
+    dashboardScroll->setWidgetResizable(true);
+    dashboardScroll->setFrameShape(QFrame::NoFrame);
+    dashboardScroll->setWidget(dashboardContent);
+    QVBoxLayout* dashboardPageLayout = new QVBoxLayout(dashboardPage);
+    dashboardPageLayout->setContentsMargins(0,0,0,0);
+    dashboardPageLayout->setSpacing(0);
+    dashboardPageLayout->addWidget(filterWidget); // Barre de recherche fixe
+    // --- Création et initialisation de kpiWidget AVANT son ajout au layout ---
+    qDebug() << "[DashboardWidget] Création kpiWidget";
+    kpiWidget = new QWidget;
+    Q_ASSERT(kpiWidget != nullptr);
+    QHBoxLayout* kpiLayout = new QHBoxLayout(kpiWidget);
+    Q_ASSERT(kpiLayout != nullptr);
+    kpiLayout->setContentsMargins(18, 12, 18, 12);
+    kpiLayout->setSpacing(18);
+
+    auto makeKpi = [](const QString& label, const QString& value, const QString& color) {
+        QWidget* box = new QWidget;
+        box->setStyleSheet("background:#31463f; border-radius:16px; padding:10px 8px; border: 1.5px solid #22332d; box-shadow: 0 2px 8px rgba(0,0,0,0.10);");
+        QVBoxLayout* v = new QVBoxLayout(box);
+        v->setSpacing(2);
+        QLabel* l = new QLabel(label);
+        l->setStyleSheet("color:#b7e0c0; font-size:13px; font-family: 'Segoe UI', 'Arial', sans-serif; letter-spacing: 1px; margin-bottom:2px;");
+        QLabel* vLabel = new QLabel(value);
+        vLabel->setStyleSheet("color:#fff; font-size:32px; font-weight:bold; font-family: 'Segoe UI', 'Arial', sans-serif; letter-spacing: 1px; margin-top:2px;");
+        v->addWidget(l, 0, Qt::AlignHCenter);
+        v->addWidget(vLabel, 0, Qt::AlignHCenter);
+        v->setAlignment(Qt::AlignCenter);
+        return std::make_pair(box, vLabel);
+    };
+
+    auto abonneKpi = makeKpi("Abonnés", "0", "#ffd23f");
+    auto totalKpi = makeKpi("Total facturé", "0", "#ffe066");
+    auto impayeKpi = makeKpi("Impayés", "0", "#e53935");
+    auto alerteKpi = makeKpi("Alertes", "0", "#ffb300"); // orange pour contraste
+    kpiAbonnes = abonneKpi.second;
+    kpiTotalFacture = totalKpi.second;
+    kpiImpayes = impayeKpi.second;
+    kpiAlertes = alerteKpi.second;
+    kpiLayout->addWidget(abonneKpi.first);
+    kpiLayout->addWidget(totalKpi.first);
+    kpiLayout->addWidget(impayeKpi.first);
+    kpiLayout->addWidget(alerteKpi.first);
+
+    // Style harmonieux pour la barre KPI
+    kpiWidget->setStyleSheet("background: #31463f; border: 1.5px solid #22332d; border-radius: 16px; margin: 0 0 12px 0;");
+    kpiWidget->setMinimumHeight(60);
+    dashboardPageLayout->addWidget(kpiWidget);    // KPI fixe
+    qDebug() << "[DashboardWidget] kpiWidget ajouté au dashboardPageLayout, sizeHint:" << kpiWidget->sizeHint();
+    dashboardPageLayout->addWidget(dashboardScroll, 1); // Le scroll ne concerne que le reste    // Les autres pages seront ajoutées ensuite
+        contentStack->addWidget(dashboardPage); // index 0
+    // Page 1 : Clients (nouveau widget dédié)
+    ClientsWidget* clientsPage = new ClientsWidget;
+    contentStack->addWidget(clientsPage); // index 1
+    // Page 2 : Compteurs
+    QWidget* compteursPage = new QWidget;
+    QVBoxLayout* compteursLayout = new QVBoxLayout(compteursPage);
+    compteursLayout->addWidget(new QLabel("Page Compteurs (à implémenter)"));
+    contentStack->addWidget(compteursPage); // index 2
+    // Page 3 : Paramètres
+    QWidget* settingsPage = new QWidget;
+    QVBoxLayout* settingsLayout = new QVBoxLayout(settingsPage);
+    settingsLayout->addWidget(new QLabel("Page Paramètres (à implémenter)"));
+    contentStack->addWidget(settingsPage); // index 3
+    // Page 4 : Détail Alertes
+    alertDetailPage = new QWidget;
+    QVBoxLayout* alertDetailLayout = new QVBoxLayout(alertDetailPage);
+    QLabel* alertDetailTitle = new QLabel("Détail des alertes");
+    alertDetailTitle->setStyleSheet("color:#ffd23f; font-size:22px; font-weight:bold; margin:18px 0 12px 0;");
+    alertDetailLayout->addWidget(alertDetailTitle, 0, Qt::AlignHCenter);
+    alertDetailList = new QListWidget;
+    alertDetailList->setStyleSheet("background: #31463f; border-radius: 16px; font-size: 15px; color: #e6e6e6; border: none; padding: 18px 18px; margin: 0px;");
+    alertDetailList->setSelectionMode(QAbstractItemView::NoSelection);
+    alertDetailList->setFocusPolicy(Qt::NoFocus);
+    alertDetailLayout->addWidget(alertDetailList);
+    QPushButton* retourBtn = new QPushButton("Retour au dashboard");
+    retourBtn->setStyleSheet("background:#ffd23f; color:#3d554b; font-weight:bold; border-radius:10px; padding:8px 18px; margin:18px auto 0 auto;");
+    retourBtn->setCursor(Qt::PointingHandCursor);
+    alertDetailLayout->addWidget(retourBtn, 0, Qt::AlignHCenter);
+    contentStack->addWidget(alertDetailPage); // index 4
+    // Par défaut, afficher la page dashboard
+    contentStack->setCurrentIndex(0);
+    qDebug() << "[DashboardWidget] contentStack initialisé avec 5 pages.";
+
+    // --- MENU LATERAL HARMONISÉ (même fond que la page d'authentification) ---
+    QFrame* menuFrame = new QFrame;
+    qDebug() << "[DashboardWidget] menuFrame créé, sizeHint:" << menuFrame->sizeHint();
+    Q_ASSERT(menuFrame != nullptr);
+    menuFrame->setFixedWidth(90);
+    menuFrame->setStyleSheet("background: #39544c; border: none; border-radius: 16px;");
+    QVBoxLayout* menuLayout = new QVBoxLayout(menuFrame);
+    menuLayout->setContentsMargins(0, 0, 0, 0);
+    menuLayout->setSpacing(0);
+
+    qDebug() << "[DashboardWidget] Début logo";
+    QLabel* logo = new QLabel;
+    qDebug() << "[DashboardWidget] logo QLabel créé, sizeHint:" << logo->sizeHint();
+    Q_ASSERT(logo != nullptr);
+    QPixmap pixLogo("logo_watersn.png");
+    if (!pixLogo.isNull()) {
+        QPixmap roundedLogo(pixLogo.scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        QPixmap mask(80, 80);
+        mask.fill(Qt::transparent);
+        QPainter painter(&mask);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setBrush(Qt::white);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(0, 0, 80, 80);
+        roundedLogo.setMask(mask.createMaskFromColor(Qt::transparent));
+        logo->setPixmap(roundedLogo);
+        qDebug() << "[DashboardWidget] Logo pixmap appliqué";
+    } else {
+        logo->setText("🌊");
+        qDebug() << "[DashboardWidget] Logo fallback emoji appliqué";
+    }
+    logo->setAlignment(Qt::AlignHCenter);
+    logo->setStyleSheet("margin-top: 36px; margin-bottom: 36px; background: transparent; border-radius: 40px;");
+    menuLayout->addWidget(logo);
+    qDebug() << "[DashboardWidget] Logo ajouté au menuLayout";
+
+    qDebug() << "[DashboardWidget] Début boutons navigation";
+
+    // Boutons de navigation avec icônes (flat, blanc, effet actif)
+    QList<QPushButton*> navButtons;
+    QStringList navNames = {"Dashboard", "Clients", "Compteurs", "Paramètres"};
+    // Icônes Material Design SVG (téléchargeables via le terminal)
+    QStringList navIcons = {
+        ":/icons/material/dashboard.svg",
+        ":/icons/material/group.svg", // SVG de test
+        ":/icons/material/speedometer.svg",
+        ":/icons/material/settings.svg"
+    };
+
+    for (int i = 0; i < navNames.size(); ++i) {
+        qDebug() << "[DashboardWidget] Création bouton navigation" << navNames[i] << "avec icône" << navIcons[i];
+        QPushButton* btn = new QPushButton;
+        qDebug() << "[DashboardWidget] btn créé, ptr =" << btn;
+        qDebug() << "[DashboardWidget] Avant setIcon";
+        btn->setIcon(QIcon(navIcons[i]));
+        qDebug() << "[DashboardWidget] Après setIcon";
+        qDebug() << "[DashboardWidget] Avant setIconSize";
+        btn->setIconSize(QSize(30,30));
+        qDebug() << "[DashboardWidget] Après setIconSize";
+        qDebug() << "[DashboardWidget] Avant setToolTip";
+        btn->setToolTip(navNames[i]);
+        qDebug() << "[DashboardWidget] Après setToolTip";
+        qDebug() << "[DashboardWidget] Avant setCheckable";
+        btn->setCheckable(true);
+        qDebug() << "[DashboardWidget] Après setCheckable";
+        qDebug() << "[DashboardWidget] Avant setStyleSheet";
+        btn->setStyleSheet("QPushButton { background: transparent; border: none; margin: 14px 0; color: #fff; border-radius: 12px; } QPushButton:checked { background: #ffd23f; color: #3d554b; border-radius: 12px; } QPushButton:hover { background: #ffe066; color: #3d554b; border-radius: 12px; }");
+        qDebug() << "[DashboardWidget] Après setStyleSheet";
+        qDebug() << "[DashboardWidget] Avant menuLayout->addWidget";
+        menuLayout->addWidget(btn);
+        qDebug() << "[DashboardWidget] Après menuLayout->addWidget";
+        navButtons << btn;
+        qDebug() << "[DashboardWidget] Bouton navigation ajouté au menuLayout";
+    }
+    qDebug() << "[DashboardWidget] Fin boutons navigation";
+    qDebug() << "[DashboardWidget] navButtons.size() =" << navButtons.size();
+    for (int i = 0; i < navButtons.size(); ++i) {
+        qDebug() << "[DashboardWidget] navButtons[" << i << "] ptr =" << navButtons[i];
+    }
+    QButtonGroup* navGroup = new QButtonGroup(this);
+    qDebug() << "[DashboardWidget] QButtonGroup créé, ptr =" << navGroup;
+    Q_ASSERT(navGroup != nullptr);
+    navGroup->setExclusive(true);
+    for (int i = 0; i < navButtons.size(); ++i) {
+        qDebug() << "[DashboardWidget] Ajout navButton au navGroup :" << navButtons[i];
+        navGroup->addButton(navButtons[i], i);
+    }
+    if (!navButtons.isEmpty()) {
+        qDebug() << "[DashboardWidget] navButtons[0] setChecked(true) - AVANT";
+        try {
+            navButtons[0]->setChecked(true);
+            qDebug() << "[DashboardWidget] navButtons[0] setChecked(true) - APRES";
+        } catch (...) {
+            qCritical() << "[DashboardWidget] EXCEPTION attrapée lors de setChecked(true) !";
+        }
+    } else {
+        qWarning() << "[DashboardWidget] navButtons est vide, impossible de setChecked sur le premier bouton !";
+    }
+    // Connexion navigation : chaque bouton du menu latéral affiche la page correspondante dans contentStack
+    connect(navGroup, QOverload<int>::of(&QButtonGroup::idClicked), contentStack, &QStackedWidget::setCurrentIndex);
+    menuLayout->addStretch();
+
+
+
+    // Card centrale harmonisée (fond blanc, arrondi, ombre) - placée dans la page dashboard
+    qDebug() << "[DashboardWidget] Création cardFrame (dashboardPage)";
+    QFrame* cardFrame = new QFrame;
+    qDebug() << "[DashboardWidget] cardFrame créé, sizeHint:" << cardFrame->sizeHint();
+    Q_ASSERT(cardFrame != nullptr);
+    cardFrame->setObjectName("cardFrame");
+    cardFrame->setStyleSheet("background: #39544c; border-radius: 18px; border: none; box-shadow: 0 4px 24px rgba(0,0,0,0.10);");
+    cardFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect;
+    shadow->setBlurRadius(24);
+    shadow->setOffset(0, 6);
+    shadow->setColor(QColor(0,0,0,40));
+    cardFrame->setGraphicsEffect(shadow);
+
+    QVBoxLayout* cardLayout = new QVBoxLayout(cardFrame);
+    qDebug() << "[DashboardWidget] cardLayout créé, cardFrame size:" << cardFrame->size();
+    Q_ASSERT(cardLayout != nullptr);
+    qDebug() << "[DashboardWidget] Layout cardFrame prêt";
+    cardLayout->setContentsMargins(32, 32, 32, 32);
+    cardLayout->setSpacing(24);
+    // Ajout des widgets dashboard dans la page dashboard (créés plus haut)
+
+    
+    dashboardLayout->addWidget(cardFrame, 1);
+
 
     // Section KPI (4 cards colorées)
     QWidget* kpiRow = new QWidget;
@@ -178,6 +311,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     // Section alertes
     qDebug() << "[DashboardWidget] Création alertListWidget";
     alertListWidget = new QListWidget;
+    qDebug() << "[DashboardWidget] alertListWidget créé, sizeHint:" << alertListWidget->sizeHint();
     Q_ASSERT(alertListWidget != nullptr);
     alertListWidget->setStyleSheet("background: #31463f; border-radius: 16px; font-size: 15px; color: #e6e6e6; border: none; padding: 18px 18px; margin: 0px;");
     alertListWidget->setMinimumHeight(160);
@@ -211,17 +345,30 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     cardLayout->addWidget(alertContainer);
     qDebug() << "[DashboardWidget] alertListWidget ajouté à cardLayout";
 
-    // Connexion du bouton 'voir tout' (œil) à une action (à adapter selon votre navigation)
+    // Connexion du bouton 'voir tout' (œil) à l'ouverture de la page détail alertes
     connect(voirToutBtn, &QPushButton::clicked, this, [this]() {
-        // TODO : Rediriger vers la page des alertes (à adapter selon votre logique de navigation)
-        qDebug() << "[DashboardWidget] Bouton 'voir tout' cliqué (à implémenter : navigation vers la page des alertes)";
-        // Exemple : if (contentStack) contentStack->setCurrentIndex(INDEX_PAGE_ALERTES);
+        qDebug() << "[DashboardWidget] Bouton 'voir tout' cliqué, ouverture page détail alertes.";
+        // Copier les alertes dans la liste détail
+        alertDetailList->clear();
+        for (int i = 0; i < alertListWidget->count(); ++i) {
+            QListWidgetItem* src = alertListWidget->item(i);
+            QListWidgetItem* item = new QListWidgetItem(src->icon(), src->text());
+            item->setToolTip(src->toolTip());
+            item->setForeground(src->foreground());
+            alertDetailList->addItem(item);
+        }
+        contentStack->setCurrentIndex(4); // page détail alertes
+    });
+    // Bouton retour du détail alertes
+    connect(retourBtn, &QPushButton::clicked, this, [this]() {
+        contentStack->setCurrentIndex(0);
     });
 
 
 
     // PIE CHART - Consommation par collectivité (données fictives)
     QPieSeries* pieSeries = new QPieSeries();
+    qDebug() << "[DashboardWidget] pieSeries créé";
     Q_ASSERT(pieSeries != nullptr);
     // Couleurs pastel variées pour chaque collectivité
     QList<QColor> pieColors = {QColor("#42a5f5"), QColor("#66bb6a"), QColor("#ffa726"), QColor("#ab47bc")};
@@ -242,6 +389,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
         slice->setPen(QPen(QColor("#22332d"), 2));
     }
     QChart* pieChart = new QChart();
+    qDebug() << "[DashboardWidget] pieChart créé";
     Q_ASSERT(pieChart != nullptr);
     pieChart->addSeries(pieSeries);
     pieChart->setTitle("Consommation par collectivité");
@@ -259,6 +407,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     pieChart->setAnimationOptions(QChart::SeriesAnimations);
     pieChart->legend()->setAlignment(Qt::AlignRight);
     QChartView* pieChartView = new QChartView(pieChart);
+    qDebug() << "[DashboardWidget] pieChartView créé, sizeHint:" << pieChartView->sizeHint();
     Q_ASSERT(pieChartView != nullptr);
     pieChartView->setRenderHint(QPainter::Antialiasing);
     pieChartView->setMinimumHeight(420);
@@ -266,9 +415,11 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
 
     // LINE CHART - Consommation par année (données fictives)
     QLineSeries* series2024 = new QLineSeries();
+    qDebug() << "[DashboardWidget] series2024 créé";
     Q_ASSERT(series2024 != nullptr);
     series2024->setName("2024");
     QLineSeries* series2025 = new QLineSeries();
+    qDebug() << "[DashboardWidget] series2025 créé";
     Q_ASSERT(series2025 != nullptr);
     series2025->setName("2025");
     // Mois fictifs (1 à 12)
@@ -277,6 +428,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
         series2025->append(m, 15 + QRandomGenerator::global()->bounded(25));
     }
     QChart* lineChart = new QChart();
+    qDebug() << "[DashboardWidget] lineChart créé";
     Q_ASSERT(lineChart != nullptr);
     lineChart->addSeries(series2024);
     lineChart->addSeries(series2025);
@@ -322,6 +474,10 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     lineChart->legend()->setVisible(true);
     lineChart->legend()->setAlignment(Qt::AlignBottom);
     QChartView* lineChartView = new QChartView(lineChart);
+    qDebug() << "[DashboardWidget] lineChartView créé, sizeHint:" << lineChartView->sizeHint();
+    if (lineChartView->width() <= 0 || lineChartView->height() <= 0) {
+        qCritical() << "[DashboardWidget] ERREUR: lineChartView a une taille nulle ou négative! width=" << lineChartView->width() << ", height=" << lineChartView->height();
+    }
     Q_ASSERT(lineChartView != nullptr);
     lineChartView->setRenderHint(QPainter::Antialiasing);
     lineChartView->setMinimumHeight(420);
@@ -343,42 +499,6 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     // (Suppression de l'appel prématuré à updateKpi() et updateAlerts())
 
 
-    // Section KPI (en haut du dashboard, flat, moderne)
-    qDebug() << "[DashboardWidget] Création kpiWidget";
-    kpiWidget = new QWidget;
-    Q_ASSERT(kpiWidget != nullptr);
-    QHBoxLayout* kpiLayout = new QHBoxLayout(kpiWidget);
-    Q_ASSERT(kpiLayout != nullptr);
-    kpiLayout->setContentsMargins(18, 12, 18, 12);
-    kpiLayout->setSpacing(18);
-
-    auto makeKpi = [](const QString& label, const QString& value, const QString& color) {
-        QWidget* box = new QWidget;
-        box->setStyleSheet("background:#31463f; border-radius:16px; padding:10px 8px; border: 1.5px solid #22332d; box-shadow: 0 2px 8px rgba(0,0,0,0.10);");
-        QVBoxLayout* v = new QVBoxLayout(box);
-        v->setSpacing(2);
-        QLabel* l = new QLabel(label);
-        l->setStyleSheet("color:#b7e0c0; font-size:13px; font-family: 'Segoe UI', 'Arial', sans-serif; letter-spacing: 1px; margin-bottom:2px;");
-        QLabel* vLabel = new QLabel(value);
-        vLabel->setStyleSheet("color:#fff; font-size:32px; font-weight:bold; font-family: 'Segoe UI', 'Arial', sans-serif; letter-spacing: 1px; margin-top:2px;");
-        v->addWidget(l, 0, Qt::AlignHCenter);
-        v->addWidget(vLabel, 0, Qt::AlignHCenter);
-        v->setAlignment(Qt::AlignCenter);
-        return std::make_pair(box, vLabel);
-    };
-
-    auto abonneKpi = makeKpi("Abonnés", "0", "#ffd23f");
-    auto totalKpi = makeKpi("Total facturé", "0", "#ffe066");
-    auto impayeKpi = makeKpi("Impayés", "0", "#e53935");
-    auto alerteKpi = makeKpi("Alertes", "0", "#ffb300"); // orange pour contraste
-    kpiAbonnes = abonneKpi.second;
-    kpiTotalFacture = totalKpi.second;
-    kpiImpayes = impayeKpi.second;
-    kpiAlertes = alerteKpi.second;
-    kpiLayout->addWidget(abonneKpi.first);
-    kpiLayout->addWidget(totalKpi.first);
-    kpiLayout->addWidget(impayeKpi.first);
-    kpiLayout->addWidget(alerteKpi.first);
 
 
     qDebug() << "[DashboardWidget] Création rightLayout";
@@ -386,27 +506,8 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     Q_ASSERT(rightLayout != nullptr);
     rightLayout->setContentsMargins(0,0,0,0);
     rightLayout->setSpacing(0);
-    // headerBar supprimé (plus utilisé)
-    rightLayout->addSpacing(8);
-    rightLayout->addWidget(filterWidget);
-    rightLayout->addSpacing(8);
-    rightLayout->addWidget(kpiWidget);
-    rightLayout->addSpacing(8);
-    // Widget intermédiaire pour harmoniser le fond entre KPI et scroll area
-    QWidget* kpiScrollBg = new QWidget;
-    kpiScrollBg->setStyleSheet("background: #39544c; border: none; margin: 0; padding: 0;");
-    QVBoxLayout* kpiScrollBgLayout = new QVBoxLayout(kpiScrollBg);
-    kpiScrollBgLayout->setContentsMargins(0,0,0,0);
-    kpiScrollBgLayout->setSpacing(0);
-    // Ajout du scroll area dans ce widget intermédiaire
-    QScrollArea* scrollArea = new QScrollArea;
-    Q_ASSERT(scrollArea != nullptr);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("background: #39544c; border: none; margin: 0; padding: 0;");
-    scrollArea->setWidget(cardFrame);
-    kpiScrollBgLayout->addWidget(scrollArea, 1);
-    rightLayout->addWidget(kpiScrollBg, 1);
+    // On place UNIQUEMENT le contentStack dans la partie droite
+    rightLayout->addWidget(contentStack, 1);
 
     qDebug() << "[DashboardWidget] Création mainLayout";
     QHBoxLayout* mainLayout = new QHBoxLayout(this);
@@ -423,8 +524,13 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
 
     // Suppression de la connexion à navigationMenu (plus utilisé)
     qDebug() << "[DashboardWidget] Fin du constructeur DashboardWidget";
-    updateKpi();
-    updateAlerts();
+    // Protection : n'appeler updateKpi/updateAlerts que si les widgets sont bien créés
+    if (kpiAbonnes && kpiTotalFacture && kpiImpayes && kpiAlertes && alertListWidget) {
+        updateKpi();
+        updateAlerts();
+    } else {
+        qWarning() << "[DashboardWidget] Widgets KPI ou alertes non initialisés, updateKpi/updateAlerts non appelés.";
+    }
 
     // Connexion des filtres à l'application dynamique
     connect(searchLineEdit, &QLineEdit::textChanged, this, &DashboardWidget::applyFilters);
@@ -434,6 +540,21 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     qDebug() << "[DashboardWidget] Fin CONSTRUCTEUR (dernier log avant return)";
 }
 
+void DashboardWidget::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    QWidget* topLevel = window();
+    if (topLevel && topLevel->isWindow()) {
+        QSize winSize = topLevel->size();
+        if (winSize.width() > 200 && winSize.height() > 200) {
+            this->resize(winSize);
+            this->setMinimumSize(winSize.width() * 0.7, winSize.height() * 0.7);
+            qDebug() << "[DashboardWidget] showEvent: resize selon window, winSize=" << winSize;
+        }
+    }
+}
+
+   
 // Définition correcte du destructeur (hors de toute accolade superflue)
 DashboardWidget::~DashboardWidget() {
     qDebug() << "[DashboardWidget] Destructeur appelé";
@@ -450,7 +571,7 @@ void DashboardWidget::applyFilters()
 
     updateKpi();
     updateAlerts();
-    if (chartWidget) chartWidget->updateCharts();
+    // if (chartWidget) chartWidget->updateCharts(); // Suppression : QWidget n'a pas updateCharts()
 }
 void DashboardWidget::updateAlerts()
 {

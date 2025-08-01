@@ -71,6 +71,9 @@ int main(int argc, char *argv[])
     DefaultUserManager::ensureDefaultUser();
 
     // Authentification obligatoire
+    // Authentification avec récupération de la taille et de l'état de la fenêtre
+    QSize authSize(800, 650);
+    bool wasMaximized = false;
     bool authenticated = false;
     while (!authenticated) {
         AuthDialog authDialog;
@@ -78,15 +81,19 @@ int main(int argc, char *argv[])
             ResetPasswordDialog resetDialog;
             resetDialog.exec();
         });
-        if (authDialog.exec() == QDialog::Accepted) {
-            // Vérifier les identifiants
+        authDialog.resize(authSize); // Appliquer la dernière taille connue
+        if (wasMaximized) authDialog.showMaximized();
+        int result = authDialog.exec();
+        // Sauvegarder la taille et l'état avant de fermer
+        authSize = authDialog.size();
+        wasMaximized = authDialog.isMaximized();
+        if (result == QDialog::Accepted) {
             if (Auth::login(authDialog.getEmail(), authDialog.getPassword())) {
                 authenticated = true;
             } else {
                 QMessageBox::warning(nullptr, "Erreur", "Email ou mot de passe incorrect.");
             }
         } else {
-            // Fermeture du formulaire = quitter l'appli
             return 0;
         }
     }
@@ -103,11 +110,15 @@ int main(int argc, char *argv[])
 
     // Fenêtre principale : afficher uniquement le Dashboard
     QMainWindow mainWindow;
-    DashboardWidget* dashboard = new DashboardWidget(&controller);
-    mainWindow.setCentralWidget(dashboard);
     mainWindow.setWindowTitle("Gestion Forage - WaterSN");
-    mainWindow.resize(900, 600);
-    mainWindow.show();
+    // Appliquer la taille et l'état de la fenêtre d'authentification
+    mainWindow.resize(authSize);
+    if (wasMaximized) mainWindow.showMaximized();
+    else mainWindow.show();
+    // S'assurer que la fenêtre est visible et a une géométrie correcte avant de créer le dashboard
+    QApplication::processEvents();
+    DashboardWidget* dashboard = new DashboardWidget(&controller, &mainWindow);
+    mainWindow.setCentralWidget(dashboard);
 
     return app.exec();
 }
