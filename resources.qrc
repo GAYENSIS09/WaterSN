@@ -13,5 +13,8 @@
     <file>icons/material/water_drop.svg</file>
     <file>icons/material/block.svg</file>
     <file>icons/material/info.svg</file>
+    <file>icons/material/archive.svg</file>
+    <file>icons/material/test.svg</file>
+    <file>icons/material/transfer.svg</file>
   </qresource>
 </RCC>

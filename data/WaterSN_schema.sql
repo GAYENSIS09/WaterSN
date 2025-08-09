@@ -62,6 +62,7 @@ CREATE TABLE Abonnement (
     FOREIGN KEY (numCompteur) REFERENCES Compteur(numCompteur)
 );
 
+
 -- Factures
 CREATE TABLE Facture (
     idFacture INT AUTO_INCREMENT PRIMARY KEY,

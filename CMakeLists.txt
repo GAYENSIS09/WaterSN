@@ -13,10 +13,14 @@ configure_file(${CMAKE_SOURCE_DIR}/icons/material/money_off.svg ${CMAKE_BINARY_D
 configure_file(${CMAKE_SOURCE_DIR}/icons/material/water_drop.svg ${CMAKE_BINARY_DIR}/icons/material/water_drop.svg COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/icons/material/block.svg ${CMAKE_BINARY_DIR}/icons/material/block.svg COPYONLY)
 configure_file(${CMAKE_SOURCE_DIR}/icons/material/info.svg ${CMAKE_BINARY_DIR}/icons/material/info.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/archive.svg ${CMAKE_BINARY_DIR}/icons/material/archive.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/test.svg ${CMAKE_BINARY_DIR}/icons/material/test.svg COPYONLY)
+configure_file(${CMAKE_SOURCE_DIR}/icons/material/transfer.svg ${CMAKE_BINARY_DIR}/icons/material/transfer.svg COPYONLY)
 # Copie automatique des QSS dans le dossier de build
 configure_file(widgets/auth/authdialog.qss widgets/auth/authdialog.qss COPYONLY)
 configure_file(widgets/auth/resetpassworddialog.qss widgets/auth/resetpassworddialog.qss COPYONLY)
 include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/widgets)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
 
 cmake_minimum_required(VERSION 3.16)
@@ -54,16 +58,22 @@ set(PROJECT_SOURCES
     widgets/dashboard/dashboardchartwidget.cpp
     include/widgets/dashboardwidget.h
     include/widgets/dashboardchartwidget.h
+    include/widgets/actionsdelegate.h
     widgets/facture/facturewidget.cpp
     include/widgets/facturewidget.h
     widgets/facture/factureformdialog.cpp
     include/widgets/factureformdialog.h
     widgets/client/clientswidget.cpp
+    widgets/abonnementformdialog.cpp
+    include/widgets/abonnementformdialog.h
     include/widgets/clientswidget.h 
     widgets/client/clientformdialog.cpp
     include/widgets/clientformdialog.h
     widgets/client/clientdetailwidget.cpp
     include/widgets/clientdetailwidget.h
+    widgets/client/factureactionsdelegate.cpp
+    include/widgets/factureactionsdelegate.h
+    widgets/compteur/actionsdelegate.cpp
     widgets/compteur/compteurwidget.cpp
     include/widgets/compteurwidget.h
     widgets/compteur/compteurformdialog.cpp
@@ -109,6 +119,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Sql,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Charts,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:Qt${QT_VERSION_MAJOR}::Network,INTERFACE_INCLUDE_DIRECTORIES>
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/widgets
+        ${CMAKE_SOURCE_DIR}/widgets
     )
 else()
     if(ANDROID)

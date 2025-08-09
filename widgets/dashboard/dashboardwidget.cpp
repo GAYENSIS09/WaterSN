@@ -2,6 +2,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include "widgets/dashboardwidget.h"
+#include "widgets/compteurwidget.h"
 #include <QLabel>
 #include "widgets/clientswidget.h"
 #include <QIcon>
@@ -144,7 +145,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     // Page 2 : Compteurs
     QWidget* compteursPage = new QWidget;
     QVBoxLayout* compteursLayout = new QVBoxLayout(compteursPage);
-    compteursLayout->addWidget(new QLabel("Page Compteurs (à implémenter)"));
+    compteursLayout->addWidget(new CompteurWidget(m_controller, compteursPage));
     contentStack->addWidget(compteursPage); // index 2
     // Page 3 : Paramètres
     QWidget* settingsPage = new QWidget;

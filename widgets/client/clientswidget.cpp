@@ -1,6 +1,8 @@
 #include "widgets/clientdetailwidget.h"
+#include "widgets/clientformdialog.h"
 #include <QMessageBox>
 #include <QKeyEvent>
+#include <QResizeEvent>
 #include "widgets/clientswidget.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,6 +15,12 @@
 #include <QStandardItem>
 #include <QHeaderView>
 
+// SQL
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
+#include "utils/databasemanager.h"
+
 // Implémentation style dashboard : QtCharts utilisé uniquement ici
 #include <QtCharts/QChartView>
 #include <QtCharts/QChart>
@@ -24,6 +32,9 @@
 
 
 ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
+    // S'assurer que la connexion à la base de données est établie
+    DatabaseManager::connect();
+    
     // Barre de recherche/filtrage (même design que dashboard)
     QWidget* filterWidget = new QWidget;
     filterWidget->setStyleSheet("background: #31463f; border-radius: 12px; padding: 12px 18px;");
@@ -107,65 +118,27 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     clientsTable->setAlternatingRowColors(true);
     clientsTable->verticalHeader()->setDefaultSectionSize(38);
 
-    // Modèle de données fictif basé sur le schéma SQL
+    // Modèle de données basé sur la base de données
     QStandardItemModel* model = new QStandardItemModel(this);
     model->setHorizontalHeaderLabels({"ID", "Nom", "Prénom", "Adresse", "Téléphone"});
-    // Données fictives
-    QList<QList<QVariant>> fakeClients = {
-        {1, "Sow", "Fatou", "123 rue de l'eau, Dakar", "771234567"},
-        {2, "Diop", "Moussa", "45 avenue des Abonnés, Thiès", "781112233"},
-        {3, "Ba", "Aminata", "Villa 7, St-Louis", "765432198"},
-        {4, "Sy", "Ousmane", "Quartier Liberté, Kaolack", "770987654"},
-        {5, "Fall", "Awa", "Immeuble 12, Ziguinchor", "772345678"}
-    };
-    for (int i = 0; i < fakeClients.size(); ++i) {
-        const auto& row = fakeClients[i];
-        QList<QStandardItem*> items;
-        for (const auto& val : row) {
-            auto* item = new QStandardItem(val.toString());
-            item->setEditable(false);
-            items << item;
-        }
-        model->appendRow(items);
-    }
+    
+    // Charger les clients depuis la base de données
+    loadClientsFromDatabase(model);
+    
     clientsTable->setModel(model);
     clientsTable->horizontalHeader()->setVisible(true);
     clientsTable->horizontalHeader()->setStretchLastSection(true);
     clientsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     // Ouvrir les détails du client sur double-clic ou touche Entrée
-    connect(clientsTable, &QTableView::doubleClicked, this, [=](const QModelIndex& index){
+    connect(clientsTable, &QTableView::doubleClicked, this, [this](const QModelIndex& index){
         int row = index.row();
-        if (row >= 0 && row < model->rowCount()) {
+        QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+        if (row >= 0 && row < model->rowCount() && model) {
             QString nom = model->item(row, 1)->text();
             QString prenom = model->item(row, 2)->text();
             QString adresse = model->item(row, 3)->text();
             QString telephone = model->item(row, 4)->text();
-            auto* detailWidget = new ClientDetailWidget;
-            detailWidget->setClientInfo(nom, prenom, adresse, telephone);
-            QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
-            if (mainLayout) {
-                while (mainLayout->count() > 1) {
-                    QLayoutItem* item = mainLayout->takeAt(1);
-                    if (item) {
-                        QWidget* w = item->widget();
-                        if (w) w->deleteLater();
-                        delete item;
-                    }
-                }
-                mainLayout->addWidget(detailWidget, 1);
-                connect(detailWidget, &ClientDetailWidget::retourClicked, this, [=]() {
-                    // Réafficher la liste des clients (scrollArea)
-                    while (mainLayout->count() > 1) {
-                        QLayoutItem* item = mainLayout->takeAt(1);
-                        if (item) {
-                            QWidget* w = item->widget();
-                            if (w) w->deleteLater();
-                            delete item;
-                        }
-                    }
-                    mainLayout->addWidget(scrollArea, 1);
-                });
-            }
+            showClientDetails(nom, prenom, adresse, telephone);
         }
     });
     clientsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -174,27 +147,48 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     // Gestion touche Entrée
     clientsTable->installEventFilter(this);
 
-    // Bouton flottant d'ajout
-    addClientBtn = new QPushButton("/+");
-    addClientBtn->setToolTip("Ajouter un abonné");
-    addClientBtn->setFixedSize(54,54);
-    addClientBtn->setStyleSheet("background: #ffd23f; color: #3d554b; font-size: 32px; font-weight: bold; border-radius: 27px; box-shadow: 0 2px 8px rgba(0,0,0,0.10); position: absolute;");
-    addClientBtn->setCursor(Qt::PointingHandCursor);
-
-    // Contenu scrollable (graphe + table + bouton)
+    // Contenu scrollable (graphe + table)
     QWidget* scrollContent = new QWidget;
     QVBoxLayout* scrollLayout = new QVBoxLayout(scrollContent);
     scrollLayout->setContentsMargins(0,0,0,0);
     scrollLayout->setSpacing(0);
     scrollLayout->addWidget(chartView);
     scrollLayout->addWidget(clientsTable, 1);
-    QHBoxLayout* btnLayout = new QHBoxLayout;
-    btnLayout->addStretch();
-    btnLayout->addWidget(addClientBtn);
-    btnLayout->setContentsMargins(0,0,24,24);
-    scrollLayout->addLayout(btnLayout);
 
-    QScrollArea* scrollArea = new QScrollArea;
+    // Bouton flottant d'ajout avec icône et animation
+    addClientBtn = new QPushButton();
+    
+    // Utiliser une icône claire au lieu de texte "+"
+    QIcon addIcon(":/icons/material/group.svg");
+    addClientBtn->setIcon(addIcon);
+    addClientBtn->setIconSize(QSize(28, 28));
+    
+    // Améliorer l'accessibilité avec un tooltip détaillé
+    addClientBtn->setToolTip("Ajouter un nouvel abonné");
+    addClientBtn->setAccessibleName("Ajouter un abonné");
+    addClientBtn->setFixedSize(64, 64);
+    
+    // Style amélioré avec effets visuels
+    addClientBtn->setStyleSheet(
+        "QPushButton {"
+        "   background: #ffd23f;"
+        "   color: #3d554b;"
+        "   border-radius: 32px;"
+        "   border: none;"
+        "}"
+        "QPushButton:hover {"
+        "   background: #ffda65;"
+        "}"
+        "QPushButton:pressed {"
+        "   background: #ffc817;"
+        "   margin-top: 2px;"
+        "}"
+    );
+    
+    addClientBtn->setCursor(Qt::PointingHandCursor);
+    connect(addClientBtn, &QPushButton::clicked, this, &ClientsWidget::onAddClientClicked);
+
+    scrollArea = new QScrollArea;
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setWidget(scrollContent);
@@ -205,6 +199,19 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     mainLayout->setSpacing(0);
     mainLayout->addWidget(filterWidget); // barre fixe
     mainLayout->addWidget(scrollArea, 1);
+    
+    // Position absolue du bouton flottant en bas à droite
+    addClientBtn->setParent(this);
+    addClientBtn->raise(); // Mettre le bouton au premier plan
+    
+    // Position initiale avec espace de marge autour
+    const int margin = 24; // Marge en pixels
+    addClientBtn->move(width() - addClientBtn->width() - margin, 
+                      height() - addClientBtn->height() - margin);
+    
+    // Repositionner le bouton lors du redimensionnement
+    // Nous devons surcharger resizeEvent dans la classe ClientsWidget
+    // Le code est dans le fichier .h et la méthode resizeEvent est implémentée plus bas
 }
 
 
@@ -217,43 +224,228 @@ bool ClientsWidget::eventFilter(QObject* obj, QEvent* event) {
             QModelIndex index = clientsTable->currentIndex();
             if (index.isValid()) {
                 int row = index.row();
-                if (row >= 0 && row < clientsTable->model()->rowCount()) {
-                    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
-                    if (model) {
-                        QString nom = model->item(row, 1)->text();
-                        QString prenom = model->item(row, 2)->text();
-                        QString adresse = model->item(row, 3)->text();
-                        QString telephone = model->item(row, 4)->text();
-                        auto* detailWidget = new ClientDetailWidget;
-                        detailWidget->setClientInfo(nom, prenom, adresse, telephone);
-                        QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
-                        if (mainLayout) {
-                            while (mainLayout->count() > 1) {
-                                QLayoutItem* item = mainLayout->takeAt(1);
-                                if (item) {
-                                    QWidget* w = item->widget();
-                                    if (w) w->deleteLater();
-                                    delete item;
-                                }
-                            }
-                            mainLayout->addWidget(detailWidget, 1);
-                            connect(detailWidget, &ClientDetailWidget::retourClicked, this, [=]() {
-                                while (mainLayout->count() > 1) {
-                                    QLayoutItem* item = mainLayout->takeAt(1);
-                                    if (item) {
-                                        QWidget* w = item->widget();
-                                        if (w) w->deleteLater();
-                                        delete item;
-                                    }
-                                }
-                                mainLayout->addWidget(scrollArea, 1);
-                            });
-                        }
-                    }
+                QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+                if (row >= 0 && row < clientsTable->model()->rowCount() && model) {
+                    QString nom = model->item(row, 1)->text();
+                    QString prenom = model->item(row, 2)->text();
+                    QString adresse = model->item(row, 3)->text();
+                    QString telephone = model->item(row, 4)->text();
+                    showClientDetails(nom, prenom, adresse, telephone);
+                    return true;
                 }
-                return true;
             }
         }
     }
     return QWidget::eventFilter(obj, event);
+}
+
+// Charger les clients depuis la base de données
+void ClientsWidget::loadClientsFromDatabase(QStandardItemModel* model) {
+    QSqlQuery query("SELECT idClient, nom, prenom, adresse, telephone FROM Client");
+    
+    if (!query.exec()) {
+        qCritical() << "Erreur lors de la récupération des clients:" << query.lastError().text();
+        return;
+    }
+    
+    while (query.next()) {
+        QList<QStandardItem*> items;
+        for (int i = 0; i < 5; ++i) {
+            auto* item = new QStandardItem(query.value(i).toString());
+            item->setEditable(false);
+            items << item;
+        }
+        model->appendRow(items);
+    }
+}
+
+// Ajouter un client à la base de données
+int ClientsWidget::addClientToDatabase(const Client& client) {
+    // Contrôle du numéro de téléphone sénégalais avec regex
+    QRegularExpression regex("^7[0-9]{1}[ .-]?[0-9]{3}[ .-]?[0-9]{2}[ .-]?[0-9]{2}$");
+    QRegularExpressionMatch match = regex.match(client.telephone);
+    if (!match.hasMatch()) {
+        QMessageBox::warning(this, "Numéro invalide", "Le numéro de téléphone n'est pas valide. Format attendu : 7X XXX XX XX");
+        return -1;
+    }
+
+    QSqlQuery query;
+    query.prepare("INSERT INTO Client (nom, prenom, adresse, telephone) VALUES (?, ?, ?, ?)");
+    query.addBindValue(client.nom);
+    query.addBindValue(client.prenom);
+    query.addBindValue(client.adresse);
+    query.addBindValue(client.telephone);
+
+    if (!query.exec()) {
+        qCritical() << "Erreur lors de l'ajout du client:" << query.lastError().text();
+        return -1;
+    }
+
+    // Récupérer l'ID généré
+    return query.lastInsertId().toInt();
+}
+
+void ClientsWidget::onAddClientClicked() {
+    ClientFormDialog dialog(this);
+    int result = dialog.exec();
+    
+    if (result == QDialog::Accepted) {
+        Client newClient = dialog.getClient();
+        
+        // Ajouter le client à la base de données
+        int clientId = addClientToDatabase(newClient);
+        
+        if (clientId > 0) {
+            // Ajouter le client au modèle
+            QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+            if (model) {
+                QList<QStandardItem*> items;
+                items << new QStandardItem(QString::number(clientId));
+                items << new QStandardItem(newClient.nom);
+                items << new QStandardItem(newClient.prenom);
+                items << new QStandardItem(newClient.adresse);
+                items << new QStandardItem(newClient.telephone);
+                
+                // Définir les items comme non-éditables
+                for (auto* item : items) {
+                    item->setEditable(false);
+                }
+                
+                model->appendRow(items);
+                
+                // Sélectionner la nouvelle ligne
+                QModelIndex newIndex = model->index(model->rowCount() - 1, 0);
+                clientsTable->setCurrentIndex(newIndex);
+                clientsTable->scrollTo(newIndex);
+                
+                // Message de confirmation
+                QMessageBox::information(this, 
+                                        "Client ajouté", 
+                                        "Le client " + newClient.prenom + " " + newClient.nom + " a été ajouté avec succès.",
+                                        QMessageBox::Ok);
+            }
+        }
+        else {
+            QMessageBox::critical(this,
+                                "Erreur",
+                                "Impossible d'ajouter le client à la base de données.",
+                                QMessageBox::Ok);
+        }
+    }
+}
+
+// Méthode pour afficher les détails d'un client
+void ClientsWidget::showClientDetails(const QString& nom, const QString& prenom, const QString& adresse, const QString& telephone) {
+    // Préserver le widget scrollArea
+    scrollArea->setParent(nullptr); // Détacher pour ne pas le détruire
+
+    // Créer le widget de détail
+    ClientDetailWidget* detailWidget = new ClientDetailWidget(this);
+    // Récupérer l'id client depuis la première colonne du modèle
+    QModelIndex index = clientsTable->currentIndex();
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+    QString idClient;
+    if (model && index.isValid()) {
+        idClient = model->data(model->index(index.row(), 0)).toString();
+    } else {
+        idClient = "";
+    }
+    detailWidget->setClientInfo(idClient, nom, prenom, adresse, telephone);
+
+    // Connecter le signal de mise à jour du client
+    connect(detailWidget, SIGNAL(clientUpdated(QString,QString,QString,QString,QString)),
+            this, SLOT(updateClientInModel(QString,QString,QString,QString,QString)));
+
+    // Remplacer le contenu principal
+    QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
+    if (mainLayout) {
+        // Supprimer tous les widgets sauf la barre de filtres
+        while (mainLayout->count() > 1) {
+            QLayoutItem* item = mainLayout->takeAt(1);
+            if (item) {
+                QWidget* w = item->widget();
+                if (w && w != scrollArea) { // Ne pas supprimer le scrollArea
+                    w->deleteLater();
+                }
+                delete item;
+            }
+        }
+
+        // Ajouter le widget de détail
+        mainLayout->addWidget(detailWidget, 1);
+
+        // Connecter le bouton retour
+        connect(detailWidget, &ClientDetailWidget::retourClicked, this, &ClientsWidget::showClientsList);
+    }
+}
+
+// Méthode pour revenir à la liste des clients
+void ClientsWidget::showClientsList() {
+    // Nettoyer le layout principal
+    QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
+    if (mainLayout) {
+        // Supprimer tous les widgets sauf la barre de filtres
+        while (mainLayout->count() > 1) {
+            QLayoutItem* item = mainLayout->takeAt(1);
+            if (item) {
+                QWidget* w = item->widget();
+                if (w && w != scrollArea) { // Ne pas supprimer le scrollArea
+                    w->deleteLater();
+                }
+                delete item;
+            }
+        }
+
+        // Rafraîchir la table des clients depuis la base
+        QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+        if (model) {
+            model->removeRows(0, model->rowCount());
+            loadClientsFromDatabase(model);
+        }
+
+        // Réajouter le scrollArea au layout principal
+        mainLayout->addWidget(scrollArea, 1);
+    }
+
+    // S'assurer que le bouton flottant est visible et en premier plan après le retour à la liste
+    if (addClientBtn) {
+        addClientBtn->show();
+        addClientBtn->raise();
+    }
+}
+
+// Gestion du redimensionnement pour repositionner le bouton flottant
+void ClientsWidget::resizeEvent(QResizeEvent* event) {
+    // Appeler l'implémentation de base
+    QWidget::resizeEvent(event);
+    
+    // Repositionner le bouton flottant en bas à droite
+    if (addClientBtn) {
+        const int margin = 24; // Même marge que celle définie dans le constructeur
+        addClientBtn->move(width() - addClientBtn->width() - margin, 
+                          height() - addClientBtn->height() - margin);
+    }
+}
+
+// Slot pour mettre à jour le modèle après modification d'un client
+void ClientsWidget::updateClientInModel(const QString& idClient, const QString& nom, const QString& prenom, const QString& adresse, const QString& telephone) {
+    // Contrôle du numéro de téléphone sénégalais avec regex
+    QRegularExpression regex("^7[0-9]{1}[ .-]?[0-9]{3}[ .-]?[0-9]{2}[ .-]?[0-9]{2}$");
+    QRegularExpressionMatch match = regex.match(telephone);
+    if (!match.hasMatch()) {
+        QMessageBox::warning(this, "Numéro invalide", "Le numéro de téléphone n'est pas valide. Format attendu : 7X XXX XX XX");
+        return;
+    }
+
+    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+    if (!model) return;
+    for (int row = 0; row < model->rowCount(); ++row) {
+        if (model->item(row, 0)->text() == idClient) {
+            model->item(row, 1)->setText(nom);
+            model->item(row, 2)->setText(prenom);
+            model->item(row, 3)->setText(adresse);
+            model->item(row, 4)->setText(telephone);
+            break;
+        }
+    }
 }

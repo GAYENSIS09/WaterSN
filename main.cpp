@@ -100,14 +100,7 @@ int main(int argc, char *argv[])
 
     // Contrôleur central
     Controller controller;
-    // (Optionnel) Ajouter quelques données de test
-    controller.ajouterClient(Client(1, "Diallo", "Moussa", "Bamako", "77777777"));
-    controller.ajouterClient(Client(2, "Traoré", "Awa", "Bamako", "78888888"));
-    controller.ajouterCompteur(Compteur("C001", "disponible", 0, "S1"));
-    controller.ajouterCompteur(Compteur("C002", "disponible", 0, "S2"));
-    controller.ajouterFacture(Facture(1, "C001", 1, 1000, 12));
-    controller.ajouterFacture(Facture(2, "C002", 2, 500, 8));
-
+   
     // Fenêtre principale : afficher uniquement le Dashboard
     QMainWindow mainWindow;
     mainWindow.setWindowTitle("Gestion Forage - WaterSN");
