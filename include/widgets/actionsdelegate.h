@@ -7,7 +7,7 @@
 class MyActionsDelegate : public QStyledItemDelegate {
     Q_OBJECT
 public:
-    explicit MyActionsDelegate(QObject* parent = nullptr);
+    explicit MyActionsDelegate(QWidget* parent = nullptr);
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
     bool editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index) override;
 signals:

@@ -29,12 +29,18 @@ signals:
     void factureSupprimeeSignal(const QString& factureId);
     void genererFactureSignal(const QString& clientId);
     void ajouterAbonnementSignal(const QString& clientId);
+    void abonnementAjouteSignal();
+    void factureAjouteSignal();
+    void consommationAjouteSignal();
 
-private slots:
+public slots:
+    void loadAbonnementsFromDB();
+    void loadFacturesFromDB();
     void onTabChanged(int index);
     void onPayerFactureClicked();
     void onExportFactureClicked();
     void onGenererFactureClicked();
+    void onAjouterFactureClicked();
     void onAjouterAbonnementClicked();
     void filtrerFactures(int index);
     void onExportFactureDelegate(const QString& factureId);
@@ -50,15 +56,15 @@ private:
     void setupFacturesTab();
     void setupHistoriqueTab();
     void createConsommationChart();
-    
-    // Méthodes de chargement des données
-    void loadAbonnementsFromDB();
-    void loadFacturesFromDB();
-    void loadPrelevementsFromDB();
     void loadConsommationFromDB();
+
+    // Méthodes de chargement des données
     // Sauvegarde d'un champ modifié dans la base de données
     void saveClientFieldToDB(const QString& field, const QString& value);
-    
+
+    // Récupère la liste des compteurs disponibles pour l'abonnement
+    QStringList getCompteursDisponibles();
+
     // Informations client
     QString clientId;
     QString nomClient;
@@ -105,6 +111,7 @@ private:
     QTableView* facturesTable;
     QStandardItemModel* facturesModel;
     QPushButton* genererFactureBtn;
+    QPushButton* ajouterFactureBtn;
     
     // Widgets onglet Historique
     QChartView* consommationChartView;

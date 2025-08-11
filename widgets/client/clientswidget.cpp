@@ -193,22 +193,46 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     scrollArea->setFrameShape(QFrame::NoFrame);
     scrollArea->setWidget(scrollContent);
 
-    // Layout principal : barre de recherche fixe, contenu scrollable
+    // Onglet 1 : graphe d'évolution
+    QWidget* evolutionTab = new QWidget;
+    QVBoxLayout* evolutionLayout = new QVBoxLayout(evolutionTab);
+    evolutionLayout->addWidget(chartView);
+
+    // Onglet 2 : liste des clients (style Compteur)
+    QWidget* listeTab = new QWidget;
+    QVBoxLayout* listeLayout = new QVBoxLayout(listeTab);
+    listeLayout->addWidget(filterWidget);
+    listeLayout->addWidget(scrollArea, 1);
+
+    // Création du QTabWidget principal
+    QTabWidget* tabWidget = new QTabWidget(this);
+    tabWidget->addTab(evolutionTab, "Évolution");
+    tabWidget->addTab(listeTab, "Liste des clients");
+
+    // Rafraîchir la liste des clients à chaque sélection de l'onglet
+    connect(tabWidget, &QTabWidget::currentChanged, this, [=](int index){
+        if (index == 1) { // Onglet "Liste des clients"
+            QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+            if (model) {
+                model->removeRows(0, model->rowCount());
+                loadClientsFromDatabase(model);
+            }
+        }
+        // Si tu ajoutes d'autres onglets, ajoute leur refresh ici
+    });
+
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(0,0,0,0);
     mainLayout->setSpacing(0);
-    mainLayout->addWidget(filterWidget); // barre fixe
-    mainLayout->addWidget(scrollArea, 1);
-    
+    mainLayout->addWidget(tabWidget);
+    setLayout(mainLayout);
+
     // Position absolue du bouton flottant en bas à droite
     addClientBtn->setParent(this);
     addClientBtn->raise(); // Mettre le bouton au premier plan
-    
-    // Position initiale avec espace de marge autour
     const int margin = 24; // Marge en pixels
     addClientBtn->move(width() - addClientBtn->width() - margin, 
                       height() - addClientBtn->height() - margin);
-    
     // Repositionner le bouton lors du redimensionnement
     // Nous devons surcharger resizeEvent dans la classe ClientsWidget
     // Le code est dans le fichier .h et la méthode resizeEvent est implémentée plus bas
@@ -336,12 +360,8 @@ void ClientsWidget::onAddClientClicked() {
 
 // Méthode pour afficher les détails d'un client
 void ClientsWidget::showClientDetails(const QString& nom, const QString& prenom, const QString& adresse, const QString& telephone) {
-    // Préserver le widget scrollArea
-    scrollArea->setParent(nullptr); // Détacher pour ne pas le détruire
-
     // Créer le widget de détail
     ClientDetailWidget* detailWidget = new ClientDetailWidget(this);
-    // Récupérer l'id client depuis la première colonne du modèle
     QModelIndex index = clientsTable->currentIndex();
     QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
     QString idClient;
@@ -351,31 +371,34 @@ void ClientsWidget::showClientDetails(const QString& nom, const QString& prenom,
         idClient = "";
     }
     detailWidget->setClientInfo(idClient, nom, prenom, adresse, telephone);
-
-    // Connecter le signal de mise à jour du client
     connect(detailWidget, SIGNAL(clientUpdated(QString,QString,QString,QString,QString)),
             this, SLOT(updateClientInModel(QString,QString,QString,QString,QString)));
+    // Rafraîchir la liste des abonnements après ajout
+    connect(detailWidget, &ClientDetailWidget::abonnementAjouteSignal, detailWidget, &ClientDetailWidget::loadAbonnementsFromDB);
+    // Rafraîchir la liste des factures après ajout
+    connect(detailWidget, &ClientDetailWidget::factureAjouteSignal, detailWidget, &ClientDetailWidget::loadFacturesFromDB);
+    // Rafraîchir la liste de consommation après ajout
+    // Ne pas connecter consommationAjouteSignal à loadConsommationFromDB car ce slot est privé
 
-    // Remplacer le contenu principal
-    QVBoxLayout* mainLayout = qobject_cast<QVBoxLayout*>(this->layout());
-    if (mainLayout) {
-        // Supprimer tous les widgets sauf la barre de filtres
-        while (mainLayout->count() > 1) {
-            QLayoutItem* item = mainLayout->takeAt(1);
-            if (item) {
-                QWidget* w = item->widget();
-                if (w && w != scrollArea) { // Ne pas supprimer le scrollArea
-                    w->deleteLater();
-                }
-                delete item;
+    // Remplacer la table par le widget de détail dans l'onglet 'Liste des clients'
+    // On suppose que le parent de clientsTable est le layout de l'onglet listeTab
+    if (clientsTable && clientsTable->parentWidget()) {
+        QVBoxLayout* listeLayout = qobject_cast<QVBoxLayout*>(clientsTable->parentWidget()->layout());
+        if (listeLayout) {
+            int idx = listeLayout->indexOf(clientsTable);
+            if (idx != -1) {
+                listeLayout->removeWidget(clientsTable);
+                clientsTable->setParent(nullptr);
+                listeLayout->insertWidget(idx, detailWidget);
+                // Connecter le bouton retour
+                connect(detailWidget, &ClientDetailWidget::retourClicked, this, [=]() {
+                    // Remettre la table à la place du détail
+                    listeLayout->removeWidget(detailWidget);
+                    detailWidget->deleteLater();
+                    listeLayout->insertWidget(idx, clientsTable);
+                });
             }
         }
-
-        // Ajouter le widget de détail
-        mainLayout->addWidget(detailWidget, 1);
-
-        // Connecter le bouton retour
-        connect(detailWidget, &ClientDetailWidget::retourClicked, this, &ClientsWidget::showClientsList);
     }
 }
 

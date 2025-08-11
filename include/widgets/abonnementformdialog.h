@@ -7,10 +7,11 @@ class QLineEdit;
 class QComboBox;
 class QDateEdit;
 
+
 class AbonnementFormDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit AbonnementFormDialog(QWidget* parent = nullptr);
+    explicit AbonnementFormDialog(const QStringList& compteursDisponibles, QWidget* parent = nullptr);
 
     QString getCompteur() const;
     QDate getDateDebut() const;
@@ -20,9 +21,10 @@ private slots:
     void onValiderClicked();
 
 private:
-    QLineEdit* compteurEdit;
+    QComboBox* compteurCombo;
     QDateEdit* dateDebutEdit;
     QComboBox* statutCombo;
+    QStringList compteursDisponibles_;
 };
 
 #endif // ABONNEMENTFORMDIALOG_H

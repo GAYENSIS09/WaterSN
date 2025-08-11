@@ -1,7 +1,9 @@
-// ...existing includes...
+
 #include "widgets/factureactionsdelegate.h"
 #include "widgets/clientdetailwidget.h"
 #include "widgets/abonnementformdialog.h"
+#include "widgets/factureformdialog.h"
+#include "model/model.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -38,6 +40,25 @@ ClientDetailWidget::ClientDetailWidget(QWidget* parent) : QWidget(parent) {
     // Connexion des signaux et slots
     connect(retourBtn, &QPushButton::clicked, this, &ClientDetailWidget::retourClicked);
     connect(tabWidget, &QTabWidget::currentChanged, this, &ClientDetailWidget::onTabChanged);
+
+    // Rafraîchir les données à chaque sélection d'onglet
+    connect(tabWidget, &QTabWidget::currentChanged, this, [=](int index){
+        switch(index) {
+            case 0: /* Informations */
+                // Si besoin, recharger les infos client
+                setClientInfo(clientId, nomClient, prenomClient, adresseClient, telephoneClient);
+                break;
+            case 1: /* Abonnements */
+                loadAbonnementsFromDB();
+                break;
+            case 2: /* Factures */
+                loadFacturesFromDB();
+                break;
+            case 3: /* Historique */
+                loadConsommationFromDB();
+                break;
+        }
+    });
     
     // Appliquer le style global
     setStyleSheet("background: #22332d; border-radius: 16px; padding: 32px;");
@@ -45,6 +66,11 @@ ClientDetailWidget::ClientDetailWidget(QWidget* parent) : QWidget(parent) {
 
 
 // ...existing code...
+// Variables pour édition inline des tableaux
+int factureEditRow = -1;
+int factureEditCol = -1;
+int paiementEditRow = -1;
+int paiementEditCol = -1;
     // ...existing code...
 
 void ClientDetailWidget::onExportFactureDelegate(const QString& factureId) {
@@ -82,7 +108,6 @@ void ClientDetailWidget::setClientInfo(const QString& id, const QString& nom, co
     // Charger les données depuis la base de données
     loadAbonnementsFromDB();
     loadFacturesFromDB();
-    loadPrelevementsFromDB();
     loadConsommationFromDB();
 }
 
@@ -101,8 +126,7 @@ void ClientDetailWidget::onTabChanged(int index) {
             loadFacturesFromDB();
             break;
         case 3: // Onglet Historique
-            // Charger ou rafraîchir l'historique des paiements
-            loadPrelevementsFromDB();
+            // Charger ou rafraîchir uniquement la consommation (plus de paiements)
             loadConsommationFromDB();
             break;
     }
@@ -132,6 +156,7 @@ void ClientDetailWidget::onPayerFactureClicked() {
         
         // Rafraîchir l'affichage des factures
         loadFacturesFromDB();
+        emit factureAjouteSignal();
     }
 }
 
@@ -182,7 +207,8 @@ void ClientDetailWidget::onAjouterAbonnementClicked() {
         return;
     }
 
-    AbonnementFormDialog dialog(this);
+    QStringList compteursDispo = getCompteursDisponibles();
+    AbonnementFormDialog dialog(compteursDispo, this);
     if (dialog.exec() == QDialog::Accepted) {
         // Récupérer les infos saisies
         QString compteur = dialog.getCompteur();
@@ -216,13 +242,20 @@ void ClientDetailWidget::onAjouterAbonnementClicked() {
         query.bindValue(":date_abonnement", dateDebut.toString("yyyy-MM-dd"));
         if (!query.exec()) {
             QMessageBox::critical(this, "Erreur DB", "Échec de l'ajout de l'abonnement : " + query.lastError().text());
+        } else {
+            // Mettre à jour l'attribut du compteur à 'Transféré'
+            QSqlQuery updateComp(db);
+            updateComp.prepare("UPDATE Compteur SET attributComp = 'Transféré' WHERE numCompteur = :numCompteur");
+            updateComp.bindValue(":numCompteur", compteur);
+            updateComp.exec();
         }
 
-        // Les champs adresse et consommation restent affichés dans le tableau (modèle local)
-        // Le statut affiché dans le tableau est celui de attributComp
+        // Mettre à jour la liste des compteurs disponibles pour le prochain ajout
+        compteursDispo = getCompteursDisponibles();
 
         // Rafraîchir l'affichage des abonnements
         loadAbonnementsFromDB();
+        emit abonnementAjouteSignal();
     }
 }
 
@@ -264,17 +297,17 @@ void ClientDetailWidget::setupUI() {
     // Création du widget à onglets
     tabWidget = new QTabWidget(this);
     tabWidget->setStyleSheet(
-        "QTabWidget::pane { border: 1px solid #31463f; background: #31463f; border-radius: 8px; }"
-        "QTabBar::tab { background: #22332d; color: #b7e0c0; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; margin-right: 2px; }"
-        "QTabBar::tab:selected { background: #31463f; color: #ffd23f; }"
-        "QTabBar::tab:hover { background: #2c3e38; }"
+        "QTabWidget::pane { border: none; background: #22332d; margin: 0px; }"
+        "QTabBar::tab { background: #22332d; color: #e6e6e6; font-size: 15px; font-weight: normal; padding: 8px 24px; border-top-left-radius: 0px; border-top-right-radius: 0px; margin-right: 2px; min-width: 120px; }"
+        "QTabBar::tab:selected { background: #31463f; color: #ffd23f; border-bottom: 2px solid #42a5f5; }"
+        "QTabBar::tab:hover { background: #2c3e38; color: #ffd23f; }"
+        "QTabBar::tab:!selected { margin-top: 0px; }"
     );
     
     // Création des onglets
     infoTab = new QWidget;
     infoScrollArea = new QScrollArea;
     abonnementsTab = new QWidget;
-    abonnementsScrollArea = new QScrollArea;
     facturesTab = new QWidget;
     facturesScrollArea = new QScrollArea;
     historiqueTab = new QWidget;
@@ -285,9 +318,7 @@ void ClientDetailWidget::setupUI() {
     infoScrollArea->setFrameShape(QFrame::NoFrame);
     infoScrollArea->setWidget(infoTab);
     
-    abonnementsScrollArea->setWidgetResizable(true);
-    abonnementsScrollArea->setFrameShape(QFrame::NoFrame);
-    abonnementsScrollArea->setWidget(abonnementsTab);
+    // Suppression de la QScrollArea pour l'onglet abonnements
     
     facturesScrollArea->setWidgetResizable(true);
     facturesScrollArea->setFrameShape(QFrame::NoFrame);
@@ -305,7 +336,7 @@ void ClientDetailWidget::setupUI() {
     
     // Ajout des onglets au widget à onglets
     tabWidget->addTab(infoScrollArea, "Informations");
-    tabWidget->addTab(abonnementsScrollArea, "Abonnements");
+    tabWidget->addTab(abonnementsTab, "Abonnements");
     tabWidget->addTab(facturesScrollArea, "Factures");
     tabWidget->addTab(historiqueScrollArea, "Historique");
     
@@ -313,6 +344,27 @@ void ClientDetailWidget::setupUI() {
     mainLayout->addLayout(topLayout);
     mainLayout->addWidget(tabWidget, 1);
 }
+
+// Méthode pour récupérer les compteurs disponibles (non actifs)
+QStringList ClientDetailWidget::getCompteursDisponibles() {
+    QStringList disponibles;
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) {
+        QMessageBox::critical(this, "Erreur DB", "La base de données n'est pas ouverte.");
+        return disponibles;
+    }
+    // Sélectionner uniquement les compteurs disponibles
+    QSqlQuery queryAll(db);
+    if (!queryAll.exec("SELECT numCompteur FROM Compteur WHERE attributComp = 'Disponible'")) {
+        QMessageBox::critical(this, "Erreur DB", "Impossible de charger les compteurs : " + queryAll.lastError().text());
+        return disponibles;
+    }
+    while (queryAll.next()) {
+        disponibles << queryAll.value(0).toString();
+    }
+    return disponibles;
+}
+ 
 
 void ClientDetailWidget::setupInfoTab() 
 {
@@ -331,14 +383,16 @@ void ClientDetailWidget::setupInfoTab()
     QString persoLabelStyle = "font-weight: bold; color: #42a5f5;";
 
     // Nom (modif inline)
-    QWidget* nomRow = new QWidget();
+   QWidget* nomRow = new QWidget();
     QHBoxLayout* nomRowLayout = new QHBoxLayout(nomRow);
     nomRowLayout->setContentsMargins(0,0,0,0);
     nomRowLayout->setSpacing(8);
     QLabel* nomTitle = new QLabel("Nom :", this);
     nomTitle->setStyleSheet(persoLabelStyle);
     nomLabel = new QLabel(this);
-    nomLabel->setStyleSheet("color: #e6e6e6;");
+    // Récupérer la liste des compteurs disponibles
+    QStringList compteursDispo = getCompteursDisponibles();
+    AbonnementFormDialog dialog(compteursDispo, this);
     QLineEdit* nomEdit = new QLineEdit(this);
     nomEdit->setStyleSheet("color: #e6e6e6; background: #22332d; border: 1px solid #31463f; border-radius: 4px; padding: 2px 6px; min-width:60px;");
     nomEdit->hide();
@@ -571,6 +625,28 @@ bool ClientDetailWidget::eventFilter(QObject* obj, QEvent* event)
                 return true;
             }
         }
+        // Édition tableau factures
+        if (obj == facturesTable) {
+            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            QModelIndex index = facturesTable->indexAt(mouseEvent->pos());
+            if (index.isValid() && (index.column() == 1 || index.column() == 2 || index.column() == 3 || index.column() == 4)) {
+                factureEditRow = index.row();
+                factureEditCol = index.column();
+                facturesTable->edit(index);
+                return true;
+            }
+        }
+        // Édition tableau paiements
+        if (obj == paiementsTable) {
+            QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+            QModelIndex index = paiementsTable->indexAt(mouseEvent->pos());
+            if (index.isValid() && (index.column() == 0 || index.column() == 2)) {
+                paiementEditRow = index.row();
+                paiementEditCol = index.column();
+                paiementsTable->edit(index);
+                return true;
+            }
+        }
     }
     // Contrôle de la modification
     if (event->type() == QEvent::FocusOut && obj == abonnementsTable) {
@@ -595,6 +671,68 @@ bool ClientDetailWidget::eventFilter(QObject* obj, QEvent* event)
             }
             abonnementEditRow = -1;
             abonnementEditCol = -1;
+        }
+    }
+    // Contrôle de la modification tableau factures
+    if (event->type() == QEvent::FocusOut && obj == facturesTable) {
+        if (factureEditRow >= 0 && factureEditCol >= 0) {
+            QModelIndex index = facturesModel->index(factureEditRow, factureEditCol);
+            QString value = facturesModel->data(index).toString();
+            if (factureEditCol == 1) { // Date
+                QDate date = QDate::fromString(value, "dd/MM/yyyy");
+                if (!date.isValid() || date > QDate::currentDate()) {
+                    QMessageBox::warning(this, "Date invalide", "La date doit être valide et ne pas être dans le futur.");
+                    facturesModel->setData(index, "15/07/2024");
+                }
+            } else if (factureEditCol == 2) { // Montant
+                QString montant = value;
+                montant.remove(" FCFA").replace(",", ".");
+                bool ok = false;
+                double val = montant.toDouble(&ok);
+                if (!ok || val < 0) {
+                    QMessageBox::warning(this, "Montant invalide", "Le montant doit être un nombre positif.");
+                    facturesModel->setData(index, "0,00 FCFA");
+                }
+            } else if (factureEditCol == 3) { // Statut
+                QString statut = value.trimmed();
+                if (statut != "Payée" && statut != "En attente" && statut != "En retard") {
+                    QMessageBox::warning(this, "Statut invalide", "Le statut doit être 'Payée', 'En attente' ou 'En retard'.");
+                    facturesModel->setData(index, "En attente");
+                }
+            } else if (factureEditCol == 4) { // Échéance
+                QDate date = QDate::fromString(value, "dd/MM/yyyy");
+                if (!date.isValid() || date < QDate::currentDate()) {
+                    QMessageBox::warning(this, "Date d'échéance invalide", "La date doit être valide et dans le futur.");
+                    facturesModel->setData(index, "15/08/2024");
+                }
+            }
+            factureEditRow = -1;
+            factureEditCol = -1;
+        }
+    }
+    // Contrôle de la modification tableau paiements
+    if (event->type() == QEvent::FocusOut && obj == paiementsTable) {
+        if (paiementEditRow >= 0 && paiementEditCol >= 0) {
+            QModelIndex index = paiementsModel->index(paiementEditRow, paiementEditCol);
+            QString value = paiementsModel->data(index).toString();
+            if (paiementEditCol == 0) { // Date
+                QDate date = QDate::fromString(value, "dd/MM/yyyy");
+                if (!date.isValid() || date > QDate::currentDate()) {
+                    QMessageBox::warning(this, "Date invalide", "La date doit être valide et ne pas être dans le futur.");
+                    paiementsModel->setData(index, "20/07/2024");
+                }
+            } else if (paiementEditCol == 2) { // Montant
+                QString montant = value;
+                montant.remove(" FCFA").replace(",", ".");
+                bool ok = false;
+                double val = montant.toDouble(&ok);
+                if (!ok || val < 0) {
+                    QMessageBox::warning(this, "Montant invalide", "Le montant doit être un nombre positif.");
+                    paiementsModel->setData(index, "0,00 FCFA");
+                }
+            }
+            paiementEditRow = -1;
+            paiementEditCol = -1;
         }
     }
     return QWidget::eventFilter(obj, event);
@@ -626,223 +764,275 @@ void ClientDetailWidget::saveClientFieldToDB(const QString& field, const QString
 
 
 void ClientDetailWidget::setupAbonnementsTab() {
-    // Layout pour l'onglet Abonnements
+    // Layout pour l'onglet Abonnements (style compteur)
     QVBoxLayout* layout = new QVBoxLayout(abonnementsTab);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    
-    // Tableau des abonnements qui occupe tout l'espace
+    layout->setContentsMargins(18, 18, 18, 18);
+    layout->setSpacing(8);
+    // Suppression du titre pour plus d'espace au tableau
     abonnementsTable = new QTableView(this);
     abonnementsModel = new QStandardItemModel(this);
     QStringList headers = {"ID", "Compteur", "Date début", "Statut"};
     abonnementsModel->setHorizontalHeaderLabels(headers);
     abonnementsTable->setModel(abonnementsModel);
     abonnementsTable->setStyleSheet(
-        "QTableView { background-color: #31463f; alternate-background-color: #2c3e38; color: #e6e6e6; border: none; }"
-        "QTableView::item:selected { background-color: #42a5f5; color: white; }"
+        "QTableView { background-color: #22332d; color: #e6e6e6; border: none; font-size: 15px; }"
+        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: none; font-size: 15px; }"
+        "QTableView::item:selected { background-color: #ffd23f; color: #22332d; }"
     );
     abonnementsTable->setAlternatingRowColors(true);
+    abonnementsTable->setStyleSheet(
+        "QTableView { background-color: #22332d; alternate-background-color: #31463f; color: #e6e6e6; border: none; font-size: 15px; }"
+        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: none; font-size: 15px; }"
+        "QTableView::item:selected { background-color: #ffd23f; color: #22332d; }"
+    );
     abonnementsTable->verticalHeader()->setVisible(false);
     abonnementsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     abonnementsTable->setSelectionMode(QAbstractItemView::SingleSelection);
     abonnementsTable->horizontalHeader()->setStretchLastSection(true);
     abonnementsTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    // Autoriser l'édition par double-clic uniquement
     abonnementsTable->setEditTriggers(QAbstractItemView::DoubleClicked);
-    // Installer l'eventFilter pour contrôler l'édition
     abonnementsTable->installEventFilter(this);
-
-    // Bouton pour ajouter un abonnement
     ajouterAbonnementBtn = new QPushButton("+ Ajouter un abonnement", this);
     ajouterAbonnementBtn->setStyleSheet(
-        "QPushButton { background: #ffd23f; color: #22332d; font-weight: bold; padding: 10px; border-radius: 4px; margin-top: 32px; }"
+        "QPushButton { background: #ffd23f; color: #22332d; font-weight: bold; padding: 8px 18px; border-radius: 4px; margin-top: 18px; }"
         "QPushButton:hover { background: #ffdb6f; }"
     );
     ajouterAbonnementBtn->setCursor(Qt::PointingHandCursor);
     connect(ajouterAbonnementBtn, &QPushButton::clicked, this, &ClientDetailWidget::onAjouterAbonnementClicked);
-
-    // Layout pour le bouton en bas à droite
     QHBoxLayout* btnLayout = new QHBoxLayout;
     btnLayout->addStretch();
     btnLayout->addWidget(ajouterAbonnementBtn);
+    // layout->addWidget(abonnementsTitle); // supprimé pour plus d'espace
 
-    // Ajout des widgets au layout principal de l'onglet
+    // Barre de recherche et filtre statut
+    QHBoxLayout* filterLayout = new QHBoxLayout;
+    QLabel* filterLabel = new QLabel("Filtrer par statut :", this);
+    QComboBox* statutCombo = new QComboBox(this);
+    statutCombo->addItems({"Tous", "Actif", "Inactif"});
+    QLineEdit* searchAbonnementEdit = new QLineEdit(this);
+    searchAbonnementEdit->setPlaceholderText("Rechercher abonnement...");
+    searchAbonnementEdit->setMinimumWidth(160);
+    filterLayout->addWidget(filterLabel);
+    filterLayout->addWidget(statutCombo);
+    filterLayout->addWidget(searchAbonnementEdit);
+    layout->addLayout(filterLayout);
+
     layout->addWidget(abonnementsTable, 1);
     layout->addLayout(btnLayout);
+
+    // Filtrage dynamique
+    auto filterAbonnements = [=]() {
+        QString text = searchAbonnementEdit->text();
+        QString statut = statutCombo->currentText();
+        for (int row = 0; row < abonnementsModel->rowCount(); ++row) {
+            bool matchNum = abonnementsModel->item(row, 1)->text().contains(text, Qt::CaseInsensitive);
+            QString rowStatut = abonnementsModel->item(row, 3)->text();
+            bool matchStatut = (statut == "Tous") || (rowStatut == statut);
+            abonnementsTable->setRowHidden(row, !(matchNum && matchStatut));
+        }
+    };
+    connect(searchAbonnementEdit, &QLineEdit::textChanged, this, filterAbonnements);
+    connect(statutCombo, &QComboBox::currentTextChanged, this, filterAbonnements);
 }
 
+void ClientDetailWidget::onAjouterFactureClicked() {
+    if (clientId.isEmpty()) {
+        QMessageBox::warning(this, "Attention", "Aucun client sélectionné.");
+        return;
+    }
+    // Récupérer la liste des compteurs actifs pour ce client, uniquement ceux dont le compteur est 'Transféré'
+    QStringList compteursActifs;
+    QSqlDatabase db = QSqlDatabase::database();
+    if (db.isOpen()) {
+        QSqlQuery query(db);
+        query.prepare("SELECT a.numCompteur FROM Abonnement a JOIN Compteur c ON a.numCompteur = c.numCompteur WHERE a.idClient = :idClient AND a.date_abonnement = (SELECT MAX(date_abonnement) FROM Abonnement WHERE numCompteur = a.numCompteur) AND c.attributComp = 'Transféré'");
+        query.bindValue(":idClient", clientId.toInt());
+        if (query.exec()) {
+            while (query.next()) {
+                compteursActifs << query.value(0).toString();
+            }
+        }
+    }
+    FactureFormDialog dialog(compteursActifs, this);
+    dialog.setWindowTitle("Ajouter une facture");
+    dialog.setFacture(Facture(0, compteursActifs.isEmpty() ? "" : compteursActifs.first(), clientId.toInt(), 0, 0));
+    if (dialog.exec() == QDialog::Accepted) {
+        Facture facture = dialog.getFacture(clientId.toInt());
+        QSqlDatabase db = QSqlDatabase::database();
+        if (!db.isOpen()) {
+            QMessageBox::critical(this, "Erreur DB", "La base de données n'est pas ouverte.");
+            return;
+        }
+        QSqlQuery query(db);
+        query.prepare("INSERT INTO Facture (numCompteur, idClient, soldeanterieur, consommation) VALUES (:numCompteur, :idClient, :soldeanterieur, :consommation)");
+        query.bindValue(":numCompteur", facture.numCompteur);
+        query.bindValue(":idClient", facture.idClient);
+        query.bindValue(":soldeanterieur", facture.soldeanterieur);
+        query.bindValue(":consommation", facture.consommation);
+        if (!query.exec()) {
+            QMessageBox::critical(this, "Erreur DB", "Échec de l'ajout de la facture : " + query.lastError().text());
+            return;
+        }
+        // Mettre à jour la liste des compteurs actifs pour le prochain ajout (avec critère 'Transféré')
+        compteursActifs.clear();
+        QSqlQuery refreshQuery(db);
+        refreshQuery.prepare("SELECT a.numCompteur FROM Abonnement a JOIN Compteur c ON a.numCompteur = c.numCompteur WHERE a.idClient = :idClient AND a.date_abonnement = (SELECT MAX(date_abonnement) FROM Abonnement WHERE numCompteur = a.numCompteur) AND c.attributComp = 'Transféré'");
+        refreshQuery.bindValue(":idClient", clientId.toInt());
+        if (refreshQuery.exec()) {
+            while (refreshQuery.next()) {
+                compteursActifs << refreshQuery.value(0).toString();
+            }
+        }
+        loadFacturesFromDB();
+        emit factureAjouteSignal();
+    }
+}
+// ...existing includes...
+
+
 void ClientDetailWidget::setupFacturesTab() {
-    // Layout principal de l'onglet Factures
+    // Layout principal de l'onglet Factures (copie du style Compteur)
     QVBoxLayout* layout = new QVBoxLayout(facturesTab);
-    layout->setContentsMargins(0, 0, 0, 0); // aucune marge
-    layout->setSpacing(2); // espacement minimal
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(8);
     facturesTab->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    // Layout d'en-tête (titre et filtres)
-    QHBoxLayout* headerLayout = new QHBoxLayout();
-    QLabel* title = new QLabel("Factures", this);
-    title->setStyleSheet("font-size: 20px; font-weight: bold; color: #ffd23f;");
-    QLabel* periodeLabel = new QLabel("Période:", this);
-    periodeLabel->setStyleSheet("color: #e6e6e6;");
-    periodeCombo = new QComboBox(this);
-    periodeCombo->addItems({"Toutes", "Ce mois", "Ce trimestre", "Cette année"});
-    periodeCombo->setStyleSheet(
-        "QComboBox { background: #31463f; color: #e6e6e6; padding: 5px; border-radius: 4px; }"
-        "QComboBox::drop-down { border: 0px; }"
-        "QComboBox::down-arrow { image: url(:/icons/material/arrow_drop_down.svg); width: 16px; height: 16px; }"
-    );
-    QLabel* statutLabel = new QLabel("Statut:", this);
-    statutLabel->setStyleSheet("color: #e6e6e6;");
+    // Filtres horizontaux
+    QHBoxLayout* filterLayout = new QHBoxLayout;
+    QLabel* filterLabel = new QLabel("Filtrer par statut :", this);
     statutCombo = new QComboBox(this);
     statutCombo->addItems({"Tous", "Payée", "En attente", "En retard"});
-    statutCombo->setStyleSheet(
-        "QComboBox { background: #31463f; color: #e6e6e6; padding: 5px; border-radius: 4px; }"
-        "QComboBox::drop-down { border: 0px; }"
-        "QComboBox::down-arrow { image: url(:/icons/material/arrow_drop_down.svg); width: 16px; height: 16px; }"
-    );
-    connect(periodeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ClientDetailWidget::filtrerFactures);
-    connect(statutCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ClientDetailWidget::filtrerFactures);
-    headerLayout->addWidget(title);
-    headerLayout->addStretch();
-    headerLayout->addWidget(periodeLabel);
-    headerLayout->addWidget(periodeCombo);
-    headerLayout->addWidget(statutLabel);
-    headerLayout->addWidget(statutCombo);
+    QLineEdit* searchFactureEdit = new QLineEdit(this);
+    searchFactureEdit->setPlaceholderText("Rechercher facture...");
+    searchFactureEdit->setMinimumWidth(160);
+    filterLayout->addWidget(filterLabel);
+    filterLayout->addWidget(statutCombo);
+    filterLayout->addWidget(searchFactureEdit);
+    layout->addLayout(filterLayout);
 
-    // Tableau des factures directement dans le layout
+    // Tableau des factures
     facturesTable = new QTableView(this);
     facturesModel = new QStandardItemModel(this);
     QStringList headers = {"ID", "Date", "Montant", "Statut", "Échéance", "Actions"};
     facturesModel->setHorizontalHeaderLabels(headers);
     facturesTable->setModel(facturesModel);
     facturesTable->setStyleSheet(
-        "QTableView { background-color: #31463f; alternate-background-color: #2c3e38; color: #e6e6e6; border: none; }"
-        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: 1px solid #31463f; }"
-        "QTableView::item:selected { background-color: #42a5f5; color: white; }"
+        "QTableView { background-color: #22332d; color: #e6e6e6; border: none; font-size: 15px; }"
+        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: none; font-size: 15px; }"
+        "QTableView::item:selected { background-color: #ffd23f; color: #22332d; }"
     );
     facturesTable->setAlternatingRowColors(true);
+    facturesTable->setStyleSheet(
+        "QTableView { background-color: #22332d; alternate-background-color: #31463f; color: #e6e6e6; border: none; font-size: 15px; }"
+        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: none; font-size: 15px; }"
+        "QTableView::item:selected { background-color: #ffd23f; color: #22332d; }"
+    );
     facturesTable->verticalHeader()->setVisible(false);
     facturesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     facturesTable->setSelectionMode(QAbstractItemView::SingleSelection);
     facturesTable->horizontalHeader()->setStretchLastSection(true);
+    facturesTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     facturesTable->setEditTriggers(QAbstractItemView::DoubleClicked);
     facturesTable->installEventFilter(this);
-    facturesTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    layout->addWidget(facturesTable, 1);
 
-    // Seul le bouton Générer une facture reste en bas
-    QHBoxLayout* buttonsLayout = new QHBoxLayout();
-    genererFactureBtn = new QPushButton("Générer une facture", this);
-    QString btnStyle = "QPushButton { padding: 10px 22px; border-radius: 6px; font-size: 16px; font-weight: 500; box-shadow: 0px 2px 8px #22332d; }";
-    genererFactureBtn->setStyleSheet(btnStyle + "QPushButton { background: #ffd23f; color: #22332d; font-weight: bold; } QPushButton:hover { background: #ffdb6f; }");
-    genererFactureBtn->setCursor(Qt::PointingHandCursor);
-    connect(genererFactureBtn, &QPushButton::clicked, this, &ClientDetailWidget::onGenererFactureClicked);
-    buttonsLayout->addStretch();
-    buttonsLayout->addWidget(genererFactureBtn);
+    // Boutons en bas à droite
+    QHBoxLayout* btnLayout = new QHBoxLayout;
+    ajouterFactureBtn = new QPushButton("+ Ajouter une facture", this);
+    ajouterFactureBtn->setStyleSheet("QPushButton { background: #ffd23f; color: #22332d; font-weight: bold; padding: 8px 18px; border-radius: 4px; margin-right: 12px; } QPushButton:hover { background: #ffdb6f; }");
+    ajouterFactureBtn->setCursor(Qt::PointingHandCursor);
+    connect(ajouterFactureBtn, &QPushButton::clicked, this, &ClientDetailWidget::onAjouterFactureClicked);
+    btnLayout->addStretch();
+    btnLayout->addWidget(ajouterFactureBtn);
+    layout->addLayout(btnLayout);
+// ...existing code...
 
-    // Ajout au layout principal : header, tableau, boutons fixes
-    layout->addLayout(headerLayout);
-    layout->addSpacing(2); // espacement minimal entre filtres et tableau
-    layout->addWidget(facturesTable, 1); // stretch pour occuper tout l'espace
-    layout->addSpacing(2); // espacement minimal entre tableau et boutons
-    layout->addLayout(buttonsLayout);
+    // Filtrage dynamique
+    auto filterFactures = [=]() {
+        QString text = searchFactureEdit->text();
+        QString statut = statutCombo->currentText();
+        int statutCol = 3; // colonne Statut
+        for (int row = 0; row < facturesModel->rowCount(); ++row) {
+            bool matchNum = facturesModel->item(row, 0)->text().contains(text, Qt::CaseInsensitive);
+            QString rowStatut = facturesModel->item(statutCol)->text();
+            bool matchStatut = (statut == "Tous") || (rowStatut == statut);
+            facturesTable->setRowHidden(row, !(matchNum && matchStatut));
+        }
+    };
+    connect(searchFactureEdit, &QLineEdit::textChanged, this, filterFactures);
+    connect(statutCombo, &QComboBox::currentTextChanged, this, filterFactures);
 }
 
 void ClientDetailWidget::setupHistoriqueTab() {
-    // Layout principal horizontal pour l'onglet Historique
-    QHBoxLayout* mainHL = new QHBoxLayout(historiqueTab);
-    mainHL->setContentsMargins(20, 20, 20, 20);
-    mainHL->setSpacing(30);
+    // Layout principal vertical pour l'onglet Historique (graphique seul, sans historique des paiements)
+    QVBoxLayout* mainVL = new QVBoxLayout(historiqueTab);
+    mainVL->setContentsMargins(20, 20, 20, 20);
+    mainVL->setSpacing(0);
 
-    // --- Bloc graphique consommation ---
-    QWidget* graphWidget = new QWidget();
-    QVBoxLayout* graphLayout = new QVBoxLayout(graphWidget);
-    graphLayout->setContentsMargins(0, 0, 0, 0);
-    graphLayout->setSpacing(10);
-    QLabel* graphTitle = new QLabel("Historique de consommation", this);
-    graphTitle->setStyleSheet("font-size: 22px; font-weight: bold; color: #ffd23f; margin-bottom: 12px; background: #22332d; border-radius: 8px; padding: 8px 18px;");
+    // --- Bloc graphique consommation amélioré et fixe ---
+    QLabel* graphTitle = new QLabel("Consommation annuelle (m³)", this);
+    graphTitle->setStyleSheet("font-size: 20px; font-weight: bold; color: #ffd23f; background: transparent; padding: 8px 0px; margin-bottom: 8px; text-align: left;");
+    mainVL->addWidget(graphTitle, 0, Qt::AlignHCenter);
+
     createConsommationChart();
-    consommationChartView->setMinimumHeight(420);
-    consommationChartView->setMinimumWidth(520);
-    consommationChartView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    graphLayout->addWidget(graphTitle);
-    graphLayout->addWidget(consommationChartView, 1);
-    graphWidget->setStyleSheet("background: #31463f; border-radius: 12px; box-shadow: 0px 2px 12px #22332d;");
-
-    // --- Bloc tableau paiements ---
-    QWidget* tableWidget = new QWidget();
-    QVBoxLayout* tableLayout = new QVBoxLayout(tableWidget);
-    tableLayout->setContentsMargins(0, 0, 0, 0);
-    tableLayout->setSpacing(10);
-    QLabel* paiementsTitle = new QLabel("Historique des paiements", this);
-    paiementsTitle->setStyleSheet("font-size: 22px; font-weight: bold; color: #ffd23f; margin-bottom: 12px; background: #22332d; border-radius: 8px; padding: 8px 18px;");
-    paiementsTable = new QTableView(this);
-    paiementsModel = new QStandardItemModel(this);
-    QStringList paiementsHeaders = {"Date", "Facture", "Montant"};
-    paiementsModel->setHorizontalHeaderLabels(paiementsHeaders);
-    paiementsTable->setModel(paiementsModel);
-    paiementsTable->setStyleSheet(
-        "QTableView { background-color: #31463f; alternate-background-color: #2c3e38; color: #e6e6e6; border: none; font-size: 16px; }"
-        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 8px; border: 1px solid #31463f; font-size: 16px; }"
-        "QTableView::item:selected { background-color: #42a5f5; color: white; }"
-    );
-    paiementsTable->setAlternatingRowColors(true);
-    paiementsTable->verticalHeader()->setVisible(false);
-    paiementsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-    paiementsTable->horizontalHeader()->setStretchLastSection(true);
-    paiementsTable->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    paiementsTable->setEditTriggers(QAbstractItemView::DoubleClicked);
-    paiementsTable->installEventFilter(this);
-    tableLayout->addWidget(paiementsTitle);
-    tableLayout->addWidget(paiementsTable, 1);
-    tableWidget->setStyleSheet("background: #31463f; border-radius: 12px; box-shadow: 0px 2px 12px #22332d;");
-
-    // Ajout des deux blocs côte à côte
-    mainHL->addWidget(graphWidget, 3); // Augmente le stretch du graphique
-    mainHL->addWidget(tableWidget, 2);
+    // Fixer la taille du graphique pour qu'il soit toujours visible sans scroll
+    consommationChartView->setMinimumHeight(340);
+    consommationChartView->setMaximumHeight(340);
+    consommationChartView->setMinimumWidth(900);
+    consommationChartView->setMaximumWidth(900);
+    consommationChartView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    consommationChartView->setStyleSheet("background: #31463f; border-radius: 16px; box-shadow: 0px 4px 18px #22332d;");
+    mainVL->addWidget(consommationChartView, 0, Qt::AlignHCenter);
 }
 
 void ClientDetailWidget::createConsommationChart() {
     // Création d'un ensemble de barres
-    QBarSet *barSet = new QBarSet("Consommation d'eau");
-    barSet->setColor(QColor("#42a5f5")); // Couleur bleu eau
-    
+    QBarSet *barSet = new QBarSet("");
+    barSet->setColor(QColor("#00cfff")); // Couleur bleu vive
+    barSet->setLabelColor(QColor("#ffd23f"));
+    barSet->setLabelFont(QFont("Arial", 13, QFont::Bold));
     // Ajout des données d'exemple pour chaque mois (à remplacer par les données réelles)
     *barSet << 10 << 8 << 12 << 15 << 13 << 18 << 16 << 14 << 10 << 9 << 11 << 13;
-    
+
     // Création de la série de barres
     QBarSeries *series = new QBarSeries();
     series->append(barSet);
-    
+    series->setBarWidth(0.7); // Barres plus fines pour meilleure lisibilité
+    series->setLabelsPosition(QAbstractBarSeries::LabelsInsideEnd);
+    series->setLabelsVisible(true);
+
     // Création du graphique
     QChart *chart = new QChart();
     chart->addSeries(series);
-    chart->setTitle("Consommation Annuelle (m³)");
-    chart->setTitleFont(QFont("Arial", 12, QFont::Bold));
-    chart->setTitleBrush(QBrush(QColor("#ffd23f")));
-    chart->setBackgroundBrush(QBrush(QColor("#31463f")));
-    chart->setAnimationOptions(QChart::SeriesAnimations);
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    
+    chart->setBackgroundBrush(QBrush(QColor("#31463f"))); // Fond plus clair
+    chart->setAnimationOptions(QChart::NoAnimation); // Pas d'animation pour affichage instantané
+    chart->legend()->setVisible(false); // Masquer la légende pour plus de place
+    chart->setMargins(QMargins(30, 30, 30, 30)); // Marges pour ne pas couper le graphique
+
     // Création de l'axe des catégories (mois)
     QStringList categories = {"Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"};
     QBarCategoryAxis *axisX = new QBarCategoryAxis();
     axisX->append(categories);
-    axisX->setLabelsColor(QColor("#e6e6e6"));
+    axisX->setLabelsColor(QColor("#ffd23f"));
+    axisX->setLabelsFont(QFont("Arial", 14, QFont::Bold));
+    axisX->setGridLineVisible(false); // Pas de grille verticale
     chart->addAxis(axisX, Qt::AlignBottom);
     series->attachAxis(axisX);
-    
+
     // Création de l'axe des valeurs (consommation)
     QValueAxis *axisY = new QValueAxis();
     axisY->setTitleText("Consommation (m³)");
     axisY->setRange(0, 20);
     axisY->setTickCount(5);
     axisY->setLabelFormat("%d");
-    axisY->setTitleBrush(QBrush(QColor("#e6e6e6")));
-    axisY->setLabelsColor(QColor("#e6e6e6"));
+    axisY->setTitleBrush(QBrush(QColor("#ffd23f")));
+    axisY->setLabelsColor(QColor("#ffd23f"));
+    axisY->setLabelsFont(QFont("Arial", 14, QFont::Bold));
+    axisY->setGridLineColor(QColor("#ffd23f")); // Grille jaune
+    axisY->setGridLineVisible(true);
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
-    
+
     // Création de la vue du graphique
     consommationChartView = new QChartView(chart);
     consommationChartView->setRenderHint(QPainter::Antialiasing);
@@ -852,122 +1042,137 @@ void ClientDetailWidget::createConsommationChart() {
 void ClientDetailWidget::loadAbonnementsFromDB() {
     // Effacer le modèle existant
     abonnementsModel->removeRows(0, abonnementsModel->rowCount());
-    
-    // Pour l'instant, on ajoute des données fictives (à remplacer par la vraie requête DB)
-    QList<QStringList> donnees = {
-        {"AB001", "C00123", "01/01/2024", "Actif"},
-        {"AB002", "C00456", "15/03/2024", "Actif"},
-    };
-    
-    // Remplir le modèle avec les données
-    for (const QStringList& ligne : donnees) {
-        QList<QStandardItem*> items;
-        for (int i = 0; i < ligne.size(); ++i) {
-            QString valeur = ligne[i];
-            if (i == 3) { // colonne statut
-                bool statutBool = (valeur.trimmed().toLower() == "actif");
-                valeur = statutBool ? "Actif" : "Inactif";
-            }
-            QStandardItem* item = new QStandardItem(valeur);
-            // Rendre les colonnes 0 et 1 non éditables
-            if (i == 0 || i == 1) item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-            items << item;
-        }
-        abonnementsModel->appendRow(items);
+
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) {
+        QMessageBox::critical(this, "Erreur DB", "La base de données n'est pas ouverte.");
+        return;
     }
-    
-    // Mettre à jour le compteur d'abonnements dans l'onglet Info
-    nbAbonnementsLabel->setText("Nombre d'abonnements: " + QString::number(donnees.size()));
+
+    QSqlQuery query(db);
+    query.prepare("SELECT id, numCompteur, date_abonnement FROM Abonnement WHERE idClient = :idClient");
+    query.bindValue(":idClient", clientId.toInt());
+    if (!query.exec()) {
+        QMessageBox::critical(this, "Erreur DB", "Impossible de charger les abonnements : " + query.lastError().text());
+        return;
+    }
+
+    int count = 0;
+    QStringList logAbonnements;
+    while (query.next()) {
+        QString id = query.value(0).toString();
+        QString numCompteur = query.value(1).toString();
+        QDate dateDebut = query.value(2).toDate();
+        QString dateDebutStr = dateDebut.toString("dd/MM/yyyy");
+
+        // Vérifier si le compteur est bien 'Transféré'
+        QString attributComp;
+        QSqlQuery queryComp(db);
+        queryComp.prepare("SELECT attributComp FROM Compteur WHERE numCompteur = :numCompteur");
+        queryComp.bindValue(":numCompteur", numCompteur);
+        if (queryComp.exec() && queryComp.next()) {
+            attributComp = queryComp.value(0).toString();
+        } else {
+            attributComp = "";
+        }
+
+        // Vérifier si cet abonnement est le plus récent pour ce compteur ET que le compteur est transféré
+        QSqlQuery queryMax(db);
+        queryMax.prepare("SELECT MAX(date_abonnement) FROM Abonnement WHERE numCompteur = :numCompteur");
+        queryMax.bindValue(":numCompteur", numCompteur);
+        QString statut = "Inactif";
+        if (queryMax.exec() && queryMax.next()) {
+            QDate maxDate = queryMax.value(0).toDate();
+            if (dateDebut == maxDate && attributComp == "Transféré") {
+                statut = "Actif";
+            }
+        }
+
+        QList<QStandardItem*> items;
+        QStandardItem* itemId = new QStandardItem(id);
+        itemId->setFlags(itemId->flags() & ~Qt::ItemIsEditable);
+        items << itemId;
+        QStandardItem* itemCompteur = new QStandardItem(numCompteur);
+        itemCompteur->setFlags(itemCompteur->flags() & ~Qt::ItemIsEditable);
+        items << itemCompteur;
+        items << new QStandardItem(dateDebutStr);
+        items << new QStandardItem(statut);
+        abonnementsModel->appendRow(items);
+        logAbonnements << QString("id=%1, compteur=%2, date=%3, statut=%4").arg(id, numCompteur, dateDebutStr, statut);
+        count++;
+    }
+    qDebug() << "Abonnements chargés:" << logAbonnements;
+    nbAbonnementsLabel->setText("Nombre d'abonnements: " + QString::number(count));
 }
 
 void ClientDetailWidget::loadFacturesFromDB() {
     // Effacer le modèle existant
     facturesModel->removeRows(0, facturesModel->rowCount());
-    
-    // Pour l'instant, on ajoute des données fictives (à remplacer par la vraie requête DB)
-    QList<QStringList> donnees = {
-        {"F00123", "15/07/2024", "78,50 FCFA", "Payée", "15/08/2024", ""},
-        {"F00124", "15/08/2024", "92,20 FCFA", "En attente", "15/09/2024", ""},
-    };
-    
-    // Remplir le modèle avec les données, style pro
-    for (const QStringList& ligne : donnees) {
-        QList<QStandardItem*> items;
-        for (int i = 0; i < ligne.size(); ++i) {
-            QString valeur = ligne[i];
-            QStandardItem* item = new QStandardItem(valeur);
-            if (i == 2) { // Montant
-                item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-                QFont f = item->font(); f.setBold(true); item->setFont(f);
-            }
-            if (i == 3) { // Statut
-                // Badge coloré
-                if (valeur == "Payée") item->setBackground(QColor("#4CAF50"));
-                else if (valeur == "En attente") item->setBackground(QColor("#FFC107"));
-                else if (valeur == "En retard") item->setBackground(QColor("#F44336"));
-                item->setForeground(QBrush(QColor("#22332d")));
-                QFont f = item->font(); f.setBold(true); item->setFont(f);
-            }
-            if (i == 5) { // Actions
-                // Ajout d'icônes d'action (fictif, à remplacer par vrais boutons délégués si besoin)
-                item->setText("💳  📄  🗑️");
-                item->setTextAlignment(Qt::AlignCenter);
-            }
-            items << item;
-        }
-        facturesModel->appendRow(items);
+    // Réappliquer le style et les propriétés après reload
+    facturesTable->setStyleSheet(
+        "QTableView { background-color: #22332d; color: #e6e6e6; border: none; font-size: 15px; }"
+        "QHeaderView::section { background-color: #22332d; color: #ffd23f; padding: 6px; border: none; font-size: 15px; }"
+        "QTableView::item:selected { background-color: #ffd23f; color: #22332d; }"
+    );
+    facturesTable->setAlternatingRowColors(false);
+    facturesTable->verticalHeader()->setVisible(false);
+    facturesTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    facturesTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    facturesTable->horizontalHeader()->setStretchLastSection(true);
+    facturesTable->setEditTriggers(QAbstractItemView::DoubleClicked);
+
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) {
+        QMessageBox::critical(this, "Erreur DB", "La base de données n'est pas ouverte.");
+        return;
     }
-    
-    // Calculer le total des factures
+
+    QSqlQuery query(db);
+    query.prepare("SELECT idFacture, numCompteur, soldeanterieur, consommation FROM Facture WHERE idClient = :idClient");
+    query.bindValue(":idClient", clientId.toInt());
+    if (!query.exec()) {
+        QMessageBox::critical(this, "Erreur DB", "Impossible de charger les factures : " + query.lastError().text());
+        return;
+    }
+
     double total = 0.0;
-    for (const QStringList& ligne : donnees) {
-        QString montant = ligne[2];
-        montant.remove(" FCFA").replace(",", ".");
-        total += montant.toDouble();
+    int count = 0;
+    while (query.next()) {
+        QString id = query.value(0).toString();
+        QString numCompteur = query.value(1).toString();
+        double solde = query.value(2).toDouble();
+        double conso = query.value(3).toDouble();
+        double montant = solde + conso;
+        QString montantStr = QString::number(montant, 'f', 2).replace(".", ",") + " FCFA";
+        QList<QStandardItem*> items;
+        items << new QStandardItem(id);
+        items << new QStandardItem(numCompteur);
+        QStandardItem* itemMontant = new QStandardItem(montantStr);
+        itemMontant->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        QFont f = itemMontant->font(); f.setBold(true); itemMontant->setFont(f);
+        items << itemMontant;
+        QStandardItem* itemSolde = new QStandardItem(QString::number(solde, 'f', 2).replace(".", ",") + " FCFA");
+        items << itemSolde;
+        QStandardItem* itemConso = new QStandardItem(QString::number(conso, 'f', 2).replace(".", ",") + " m³");
+        items << itemConso;
+        QStandardItem* itemActions = new QStandardItem("💳  📄  🗑️");
+        itemActions->setTextAlignment(Qt::AlignCenter);
+        items << itemActions;
+        facturesModel->appendRow(items);
+        total += montant;
+        count++;
     }
-    // Mettre à jour le total des factures dans l'onglet Info
     totalFacturesLabel->setText(QString("Total des factures: %1 FCFA").arg(total, 0, 'f', 2).replace(".", ","));
-    
-    // Mettre à jour le statut de paiement
-    bool toutPaye = true;
-    for (const QStringList& ligne : donnees) {
-        if (ligne[3] != "Payée") {
-            toutPaye = false;
-            break;
-        }
-    }
-    
-    statutPaiementLabel->setText("Statut des paiements: " + QString(toutPaye ? "À jour" : "En attente"));
-    statutPaiementLabel->setStyleSheet("font-size: 16px; color: " + QString(toutPaye ? "#4CAF50" : "#FFC107") + 
-                                      "; padding: 8px; background: #31463f; border-radius: 4px;");
+    statutPaiementLabel->setText("Statut des paiements: N/A");
+    statutPaiementLabel->setStyleSheet("font-size: 16px; color: #FFD23F; padding: 8px; background: #31463f; border-radius: 4px;");
 }
 
-void ClientDetailWidget::loadPrelevementsFromDB() {
-    // Charger les données des paiements
-    paiementsModel->removeRows(0, paiementsModel->rowCount());
-    
-    QList<QStringList> paiements = {
-        {"20/07/2024", "F00123", "78,50 FCFA"},
-        {"18/06/2024", "F00122", "85,30 FCFA"},
-        {"15/05/2024", "F00121", "92,40 FCFA"},
-        {"20/04/2024", "F00120", "79,80 FCFA"},
-        {"18/03/2024", "F00119", "84,10 FCFA"},
-        {"15/02/2024", "F00118", "76,70 FCFA"},
-    };
-    for (const QStringList& ligne : paiements) {
-        QList<QStandardItem*> items;
-        for (const QString& valeur : ligne) {
-            items << new QStandardItem(valeur);
-        }
-        paiementsModel->appendRow(items);
-    }
-}
 
 void ClientDetailWidget::loadConsommationFromDB() {
     // Pour l'instant, on utilise les données d'exemple du graphique
     // À l'avenir, ces données proviendront de la base de données
-    
     // Calculer la consommation moyenne
     double consoMoyenne = 11.6; // Exemple: moyenne des valeurs dans le graphique
     consoMoyenneLabel->setText(QString("Consommation moyenne: %1 m³").arg(consoMoyenne, 0, 'f', 1).replace(".", ","));
+    emit consommationAjouteSignal();
 }

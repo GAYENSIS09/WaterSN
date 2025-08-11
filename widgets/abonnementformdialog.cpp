@@ -11,8 +11,9 @@ void AbonnementFormDialog::onValiderClicked() {
 #include <QDateEdit>
 #include <QDialogButtonBox>
 
-AbonnementFormDialog::AbonnementFormDialog(QWidget* parent)
-    : QDialog(parent)
+
+AbonnementFormDialog::AbonnementFormDialog(const QStringList& compteursDisponibles, QWidget* parent)
+    : QDialog(parent), compteursDisponibles_(compteursDisponibles)
 {
     setWindowTitle("Ajouter un abonnement");
     setModal(true);
@@ -21,9 +22,10 @@ AbonnementFormDialog::AbonnementFormDialog(QWidget* parent)
     // Compteur
     QHBoxLayout* compteurLayout = new QHBoxLayout;
     QLabel* compteurLabel = new QLabel("Compteur:", this);
-    compteurEdit = new QLineEdit(this);
+    compteurCombo = new QComboBox(this);
+    compteurCombo->addItems(compteursDisponibles_);
     compteurLayout->addWidget(compteurLabel);
-    compteurLayout->addWidget(compteurEdit);
+    compteurLayout->addWidget(compteurCombo);
     mainLayout->addLayout(compteurLayout);
 
     // Date début
@@ -42,8 +44,9 @@ AbonnementFormDialog::AbonnementFormDialog(QWidget* parent)
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
+
 QString AbonnementFormDialog::getCompteur() const {
-    return compteurEdit ? compteurEdit->text() : "";
+    return compteurCombo ? compteurCombo->currentText() : "";
 }
 
 // Suppression de la méthode getAdresse obsolète

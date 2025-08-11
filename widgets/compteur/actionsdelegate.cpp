@@ -3,8 +3,10 @@
 #include <QMouseEvent>
 #include <QEvent>
 
-MyActionsDelegate::MyActionsDelegate(QObject* parent)
-    : QStyledItemDelegate(parent) {}
+MyActionsDelegate::MyActionsDelegate(QWidget* parent)
+    : QStyledItemDelegate(parent) {
+    qDebug() << "[mlog] MyActionsDelegate parent type:" << (parent ? parent->metaObject()->className() : "nullptr") << ", adresse:" << parent;
+}
 
 void MyActionsDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     QStyleOptionButton btnArchiver, btnTransferer;
