@@ -83,6 +83,18 @@ void ClientDetailWidget::onSupprimerFactureDelegate(const QString& factureId) {
         "Voulez-vous vraiment supprimer cette facture ?",
         QMessageBox::Yes | QMessageBox::No);
     if (confirmation == QMessageBox::Yes) {
+        QSqlDatabase db = QSqlDatabase::database();
+        if (!db.isOpen()) {
+            QMessageBox::critical(this, "Erreur DB", "La base de données n'est pas ouverte.");
+            return;
+        }
+        QSqlQuery query(db);
+        query.prepare("DELETE FROM Facture WHERE idFacture = :idFacture");
+        query.bindValue(":idFacture", factureId.toInt());
+        if (!query.exec()) {
+            QMessageBox::critical(this, "Erreur DB", "Échec de la suppression de la facture : " + query.lastError().text());
+            return;
+        }
         emit factureSupprimeeSignal(factureId);
         loadFacturesFromDB();
     }
@@ -759,6 +771,26 @@ void ClientDetailWidget::saveClientFieldToDB(const QString& field, const QString
         QMessageBox::critical(this, "Erreur DB", "Échec de la mise à jour : " + query.lastError().text());
     } else {
         qDebug() << "Champ client mis à jour :" << field << "=" << value << "pour client" << clientId;
+        QMessageBox::information(this, "Modification enregistrée", QString("Le champ '%1' a bien été mis à jour.").arg(field));
+        // Recharger les infos du client depuis la base
+        QSqlQuery reloadQuery(QSqlDatabase::database());
+        reloadQuery.prepare("SELECT nom, prenom, adresse, telephone FROM Client WHERE idClient = :idClient");
+        reloadQuery.bindValue(":idClient", clientId.toInt());
+        if (reloadQuery.exec() && reloadQuery.next()) {
+            setClientInfo(clientId,
+                reloadQuery.value(0).toString(),
+                reloadQuery.value(1).toString(),
+                reloadQuery.value(2).toString(),
+                reloadQuery.value(3).toString());
+            // Recharger la liste des clients si le widget parent possède la méthode
+            QWidget* parentWidget = this->parentWidget();
+            if (parentWidget) {
+                auto reloadClients = parentWidget->metaObject()->indexOfMethod("loadClientsFromDB()");
+                if (reloadClients != -1) {
+                    QMetaObject::invokeMethod(parentWidget, "loadClientsFromDB");
+                }
+            }
+        }
     }
 }
 
@@ -913,7 +945,7 @@ void ClientDetailWidget::setupFacturesTab() {
     // Tableau des factures
     facturesTable = new QTableView(this);
     facturesModel = new QStandardItemModel(this);
-    QStringList headers = {"ID", "Date", "Montant", "Statut", "Échéance", "Actions"};
+    QStringList headers = {"ID", "Date", "Statut", "Échéance", "Actions"};
     facturesModel->setHorizontalHeaderLabels(headers);
     facturesTable->setModel(facturesModel);
     facturesTable->setStyleSheet(
@@ -953,8 +985,14 @@ void ClientDetailWidget::setupFacturesTab() {
         QString statut = statutCombo->currentText();
         int statutCol = 3; // colonne Statut
         for (int row = 0; row < facturesModel->rowCount(); ++row) {
-            bool matchNum = facturesModel->item(row, 0)->text().contains(text, Qt::CaseInsensitive);
-            QString rowStatut = facturesModel->item(statutCol)->text();
+            QStandardItem *numItem = facturesModel->item(row, 0);
+            QStandardItem *statutItem = facturesModel->item(row, statutCol);
+            if (!numItem || !statutItem) {
+                facturesTable->setRowHidden(row, true);
+                continue;
+            }
+            bool matchNum = numItem->text().contains(text, Qt::CaseInsensitive);
+            QString rowStatut = statutItem->text();
             bool matchStatut = (statut == "Tous") || (rowStatut == statut);
             facturesTable->setRowHidden(row, !(matchNum && matchStatut));
         }
@@ -1089,14 +1127,18 @@ void ClientDetailWidget::loadAbonnementsFromDB() {
         }
 
         QList<QStandardItem*> items;
-        QStandardItem* itemId = new QStandardItem(id);
-        itemId->setFlags(itemId->flags() & ~Qt::ItemIsEditable);
-        items << itemId;
-        QStandardItem* itemCompteur = new QStandardItem(numCompteur);
-        itemCompteur->setFlags(itemCompteur->flags() & ~Qt::ItemIsEditable);
-        items << itemCompteur;
-        items << new QStandardItem(dateDebutStr);
-        items << new QStandardItem(statut);
+    QStandardItem* itemId = new QStandardItem(id);
+    itemId->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemId;
+    QStandardItem* itemCompteur = new QStandardItem(numCompteur);
+    itemCompteur->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemCompteur;
+    QStandardItem* itemDate = new QStandardItem(dateDebutStr);
+    itemDate->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemDate;
+    QStandardItem* itemStatut = new QStandardItem(statut);
+    itemStatut->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemStatut;
         abonnementsModel->appendRow(items);
         logAbonnements << QString("id=%1, compteur=%2, date=%3, statut=%4").arg(id, numCompteur, dateDebutStr, statut);
         count++;
@@ -1142,24 +1184,62 @@ void ClientDetailWidget::loadFacturesFromDB() {
         QString numCompteur = query.value(1).toString();
         double solde = query.value(2).toDouble();
         double conso = query.value(3).toDouble();
-        double montant = solde + conso;
-        QString montantStr = QString::number(montant, 'f', 2).replace(".", ",") + " FCFA";
         QList<QStandardItem*> items;
-        items << new QStandardItem(id);
-        items << new QStandardItem(numCompteur);
-        QStandardItem* itemMontant = new QStandardItem(montantStr);
-        itemMontant->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        QFont f = itemMontant->font(); f.setBold(true); itemMontant->setFont(f);
-        items << itemMontant;
-        QStandardItem* itemSolde = new QStandardItem(QString::number(solde, 'f', 2).replace(".", ",") + " FCFA");
-        items << itemSolde;
-        QStandardItem* itemConso = new QStandardItem(QString::number(conso, 'f', 2).replace(".", ",") + " m³");
-        items << itemConso;
-        QStandardItem* itemActions = new QStandardItem("💳  📄  🗑️");
-        itemActions->setTextAlignment(Qt::AlignCenter);
+    QStandardItem* itemId = new QStandardItem(id);
+    itemId->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemId;
+    QStandardItem* itemCompteur = new QStandardItem(numCompteur);
+    itemCompteur->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemCompteur;
+    QStandardItem* itemSolde = new QStandardItem(QString::number(solde, 'f', 2).replace(".", ",") + " FCFA");
+    itemSolde->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemSolde;
+    QStandardItem* itemConso = new QStandardItem(QString::number(conso, 'f', 2).replace(".", ",") + " m³");
+    itemConso->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    items << itemConso;
+
+        // Créer un widget d'actions avec deux boutons
+        QWidget* actionsWidget = new QWidget();
+        QHBoxLayout* actionsLayout = new QHBoxLayout(actionsWidget);
+        actionsLayout->setContentsMargins(0, 0, 0, 0);
+        actionsLayout->setSpacing(6);
+
+        QPushButton* exportBtn = new QPushButton();
+    exportBtn->setIcon(QIcon(":/icons/material/visibility.svg"));
+    exportBtn->setToolTip("Exporter la facture");
+    exportBtn->setIconSize(QSize(20, 20));
+    exportBtn->setFixedSize(28, 28);
+    exportBtn->setStyleSheet("background: #ffd23f; border-radius: 6px; padding: 2px; display: flex; align-items: center; justify-content: center;");
+    exportBtn->setCursor(Qt::PointingHandCursor);
+
+    QPushButton* deleteBtn = new QPushButton();
+    deleteBtn->setIcon(QIcon(":/icons/material/delete.svg"));
+    deleteBtn->setToolTip("Supprimer la facture");
+    deleteBtn->setIconSize(QSize(20, 20));
+    deleteBtn->setFixedSize(28, 28);
+    deleteBtn->setStyleSheet("background: #ffd23f; border-radius: 6px; padding: 2px; display: flex; align-items: center; justify-content: center;");
+    deleteBtn->setCursor(Qt::PointingHandCursor);
+
+        actionsLayout->addWidget(exportBtn);
+        actionsLayout->addWidget(deleteBtn);
+        actionsLayout->addStretch();
+
+        // Créer un QStandardItem pour l'Actions (vide, juste pour la structure)
+        QStandardItem* itemActions = new QStandardItem();
         items << itemActions;
         facturesModel->appendRow(items);
-        total += montant;
+
+        // Placer le widget dans la vue
+        QModelIndex idx = facturesModel->index(facturesModel->rowCount() - 1, 4);
+        facturesTable->setIndexWidget(idx, actionsWidget);
+
+        // Connecter les boutons aux slots
+        connect(exportBtn, &QPushButton::clicked, this, [=]() {
+            onExportFactureDelegate(id);
+        });
+        connect(deleteBtn, &QPushButton::clicked, this, [=]() {
+            onSupprimerFactureDelegate(id);
+        });
         count++;
     }
     totalFacturesLabel->setText(QString("Total des factures: %1 FCFA").arg(total, 0, 'f', 2).replace(".", ","));

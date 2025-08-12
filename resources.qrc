@@ -16,5 +16,7 @@
     <file>icons/material/archive.svg</file>
     <file>icons/material/test.svg</file>
     <file>icons/material/transfer.svg</file>
+    <file>icons/material/visibility.svg</file>
+    <file>icons/material/delete.svg</file>
   </qresource>
 </RCC>

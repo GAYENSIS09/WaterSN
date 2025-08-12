@@ -22,7 +22,7 @@ FactureWidget::FactureWidget(QWidget* parent)
 
     QTableView* tableView = new QTableView(this);
     QStandardItemModel* model = new QStandardItemModel(this);
-    model->setHorizontalHeaderLabels({"ID", "Compteur", "Client", "Solde antérieur", "Consommation"});
+    model->setHorizontalHeaderLabels({"ID", "Compteur", "Solde antérieur", "Consommation"});
     tableView->setModel(model);
     tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -34,9 +34,9 @@ FactureWidget::FactureWidget(QWidget* parent)
     auto chargerFactures = [&]() {
         model->setRowCount(0);
         QList<QList<QVariant>> data = {
-            {1, "CPT001", "1", 500.0, 100.0},
-            {2, "CPT002", "2", 200.0, 50.0},
-            {3, "CPT003", "3", 300.0, 80.0}
+            {1, "CPT001", 500.0, 100.0},
+            {2, "CPT002", 200.0, 50.0},
+            {3, "CPT003", 300.0, 80.0}
         };
         for (const auto& row : data) {
             QList<QStandardItem*> items;

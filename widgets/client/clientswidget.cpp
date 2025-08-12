@@ -393,6 +393,26 @@ void ClientsWidget::showClientDetails(const QString& nom, const QString& prenom,
                 // Connecter le bouton retour
                 connect(detailWidget, &ClientDetailWidget::retourClicked, this, [=]() {
                     // Remettre la table à la place du détail
+                    // Mettre à jour le modèle client avant de revenir à la liste
+                    QModelIndex index = clientsTable->currentIndex();
+                    QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+                    QString idClient;
+                    if (model && index.isValid()) {
+                        idClient = model->data(model->index(index.row(), 0)).toString();
+                    } else {
+                        idClient = "";
+                    }
+                    // Recharger les données du client depuis la base
+                    QSqlQuery reloadQuery(QSqlDatabase::database());
+                    reloadQuery.prepare("SELECT nom, prenom, adresse, telephone FROM Client WHERE idClient = :idClient");
+                    reloadQuery.bindValue(":idClient", idClient.toInt());
+                    if (reloadQuery.exec() && reloadQuery.next()) {
+                        updateClientInModel(idClient,
+                            reloadQuery.value(0).toString(),
+                            reloadQuery.value(1).toString(),
+                            reloadQuery.value(2).toString(),
+                            reloadQuery.value(3).toString());
+                    }
                     listeLayout->removeWidget(detailWidget);
                     detailWidget->deleteLater();
                     listeLayout->insertWidget(idx, clientsTable);

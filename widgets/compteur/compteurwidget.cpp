@@ -706,6 +706,40 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
         QString label = queryClients.value(0).toString() + " - " + queryClients.value(1).toString() + " " + queryClients.value(2).toString();
         idClientCombo->addItem(label, queryClients.value(0));
     }
+        // Sélection par défaut du premier client si disponible
+        if (idClientCombo->count() > 0) {
+            idClientCombo->setCurrentIndex(0);
+        }
+
+    // Filtrage dynamique des compteurs et factures selon le client sélectionné
+    auto updateCompteurEtFactureCombo = [=]() {
+        QVariant idClient = idClientCombo->currentData();
+        // Compteurs
+        numCompteurCombo->clear();
+        QSqlQuery queryCompteurs;
+        queryCompteurs.prepare("SELECT numCompteur FROM Abonnement WHERE idClient = ?");
+        queryCompteurs.addBindValue(idClient);
+        if (queryCompteurs.exec()) {
+            while (queryCompteurs.next()) {
+                numCompteurCombo->addItem(queryCompteurs.value(0).toString());
+            }
+        }
+        // Factures
+        idFactureCombo->clear();
+        QSqlQuery queryFactures;
+        queryFactures.prepare("SELECT idFacture FROM Facture WHERE idClient = ?");
+        queryFactures.addBindValue(idClient);
+        if (queryFactures.exec()) {
+            while (queryFactures.next()) {
+                idFactureCombo->addItem(queryFactures.value(0).toString());
+            }
+        }
+    };
+        QObject::connect(idClientCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), factureFormWidget, updateCompteurEtFactureCombo);
+        // Initialiser les combos au démarrage selon le client sélectionné
+        if (idClientCombo->count() > 0) {
+            updateCompteurEtFactureCombo();
+        }
     // QLineEdit pour mensualite
     QLineEdit *mensualiteEdit = new QLineEdit(factureFormWidget);
     QPushButton *factureFormAddBtn = new QPushButton("Ajouter");
@@ -754,7 +788,7 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
         factureTable->setSelectionMode(QAbstractItemView::SingleSelection);
         factureTable->setAlternatingRowColors(true);
         factureTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-        factureTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    factureTable->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
         QObject::connect(newFactureModel, &QStandardItemModel::itemChanged, this, [=](QStandardItem *item) {
             int row = item->row();
             int col = item->column();
@@ -768,8 +802,15 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
                 }
                 bool okMensualite = false;
                 double valMensualite = nouvelleMensualite.toDouble(&okMensualite);
-                if (!okMensualite) {
-                    QMessageBox::warning(this, "Erreur", "La mensualité doit être une valeur numérique.");
+                if (!okMensualite || valMensualite < 0) {
+                    QMessageBox::warning(this, "Erreur", "La mensualité doit être une valeur numérique positive.");
+                    // Remettre la valeur précédente depuis la base
+                    QSqlQuery query;
+                    query.prepare("SELECT mensualite FROM Facturation WHERE id = ?");
+                    query.addBindValue(idFacturation);
+                    if (query.exec() && query.next()) {
+                        item->setText(query.value(0).toString());
+                    }
                     return;
                 }
                 qDebug() << "[mlog] Tentative de mise à jour mensualité en DB : id=" << idFacturation << ", nouvelleMensualite=" << nouvelleMensualite;

@@ -22,6 +22,16 @@ void PrelevementWidget::setupUI() {
     tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
+    // Rendre toutes les colonnes en lecture seule
+    for (int row = 0; row < model->rowCount(); ++row) {
+        for (int col = 0; col < model->columnCount(); ++col) {
+            QStandardItem* item = model->item(row, col);
+            if (item) {
+                item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+            }
+        }
+    }
+
     addButton = new QPushButton("Ajouter un prélèvement", this);
     filterEdit = new QLineEdit(this);
     filterEdit->setPlaceholderText("Filtrer par compteur...");
