@@ -25,6 +25,7 @@
 #include <QtCharts/QLegend>
 #include <QtCharts/QCategoryAxis>
 #include <QRandomGenerator>
+#include <QCoreApplication>
 
 DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     // --- STYLE AVANCÉ POUR QComboBox (filtres) ---
@@ -177,7 +178,7 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     qDebug() << "[DashboardWidget] menuFrame créé, sizeHint:" << menuFrame->sizeHint();
     Q_ASSERT(menuFrame != nullptr);
     menuFrame->setFixedWidth(90);
-    menuFrame->setStyleSheet("background: #39544c; border: none; border-radius: 16px;");
+    menuFrame->setStyleSheet("background: #39544c; border: none; border-top-left-radius: 16px; border-bottom-left-radius: 16px; border-top-right-radius: 0px; border-bottom-right-radius: 0px;");
     QVBoxLayout* menuLayout = new QVBoxLayout(menuFrame);
     menuLayout->setContentsMargins(0, 0, 0, 0);
     menuLayout->setSpacing(0);
@@ -186,7 +187,8 @@ DashboardWidget::DashboardWidget(Controller* controller, QWidget *parent)
     QLabel* logo = new QLabel;
     qDebug() << "[DashboardWidget] logo QLabel créé, sizeHint:" << logo->sizeHint();
     Q_ASSERT(logo != nullptr);
-    QPixmap pixLogo("logo_watersn.png");
+    QString logoPath = QCoreApplication::applicationDirPath() + "/logo_watersn.png";
+    QPixmap pixLogo(logoPath);
     if (!pixLogo.isNull()) {
         QPixmap roundedLogo(pixLogo.scaled(80, 80, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         QPixmap mask(80, 80);
@@ -680,9 +682,10 @@ void DashboardWidget::updateKpi()
     }
     qDebug() << "[DashboardWidget] Après bloc kpiTotalFacture";
 
-    // Nombre d'impayés filtré (pas de champ paye, on suppose impayé = soldeanterieur > 0)
-    QString impayeQuery = "SELECT COUNT(*) FROM Facture f JOIN Client c ON f.idClient=c.idClient WHERE (f.soldeanterieur > 0) AND " + clientWhere + " AND " + factureWhere;
-    qDebug() << "[DashboardWidget] Avant QSqlQuery q3 (COUNT impayés):" << impayeQuery;
+    // Nombre d'impayés réel : factures sans facturation (mensualité > 0)
+    QString impayeQuery = "SELECT COUNT(*) FROM Facture f JOIN Client c ON f.idClient=c.idClient WHERE " + clientWhere + " AND " + factureWhere +
+        " AND NOT EXISTS (SELECT 1 FROM Facturation fa WHERE fa.idFacture = f.idFacture AND fa.mensualite > 0)";
+    qDebug() << "[DashboardWidget] Avant QSqlQuery q3 (COUNT impayés réel):" << impayeQuery;
     QSqlQuery q3(impayeQuery);
     qDebug() << "[DashboardWidget] Après QSqlQuery q3, isActive=" << q3.isActive();
     if (!q3.isActive()) qDebug() << "[DashboardWidget] Erreur SQL kpiImpayes:" << q3.lastError().text();

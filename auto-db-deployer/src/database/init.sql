@@ -1,5 +1,4 @@
 -- Création d'un utilisateur MySQL dédié pour l'application WaterSN
--- À adapter selon votre politique de sécurité
 -- Exemple : utilisateur = watersn_admin, mot de passe = WaterSN2025!2026
 CREATE USER IF NOT EXISTS 'watersn_admin'@'localhost' IDENTIFIED BY 'WaterSN2025!2026';
 GRANT ALL PRIVILEGES ON WaterSN.* TO 'watersn_admin'@'localhost';

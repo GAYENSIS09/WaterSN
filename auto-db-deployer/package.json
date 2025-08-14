@@ -1,0 +1,17 @@
+{
+  "name": "auto-db-deployer",
+  "version": "1.0.0",
+  "description": "A cross-platform application to automatically deploy a SQL database during installation.",
+  "main": "src/main.cpp",
+  "scripts": {
+    "build": "cmake . && make",
+    "install": "node install.js",
+    "test": "node test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "cmake": "^3.21.0"
+  },
+  "author": "Your Name",
+  "license": "MIT"
+}

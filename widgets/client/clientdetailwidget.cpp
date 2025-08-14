@@ -1,4 +1,3 @@
-
 #include "widgets/factureactionsdelegate.h"
 #include "widgets/clientdetailwidget.h"
 #include "widgets/abonnementformdialog.h"
@@ -65,7 +64,6 @@ ClientDetailWidget::ClientDetailWidget(QWidget* parent) : QWidget(parent) {
 }
 
 
-// ...existing code...
 // Variables pour édition inline des tableaux
 int factureEditRow = -1;
 int factureEditCol = -1;
@@ -121,6 +119,63 @@ void ClientDetailWidget::setClientInfo(const QString& id, const QString& nom, co
     loadAbonnementsFromDB();
     loadFacturesFromDB();
     loadConsommationFromDB();
+
+    // --- MAJ KPI réels ---
+    QSqlDatabase db = QSqlDatabase::database();
+    // 1. Nombre d'abonnements actifs
+    int nbAbonnements = 0;
+    QSqlQuery qAb(db);
+    qAb.prepare("SELECT COUNT(*) FROM Abonnement WHERE idClient = ?");
+    qAb.addBindValue(id.toInt());
+    if (qAb.exec() && qAb.next()) nbAbonnements = qAb.value(0).toInt();
+    nbAbonnementsLabel->setText("Nombre d'abonnements: " + QString::number(nbAbonnements));
+
+    // 2. Total des factures
+    double totalFactures = 0.0;
+    QSqlQuery qFact(db);
+    qFact.prepare("SELECT SUM(soldeanterieur + consommation) FROM Facture WHERE idClient = ?");
+    qFact.addBindValue(id.toInt());
+    if (qFact.exec() && qFact.next()) totalFactures = qFact.value(0).toDouble();
+    totalFacturesLabel->setText(QString("Total des factures: %1 FCFA").arg(totalFactures, 0, 'f', 2).replace(".", ","));
+
+    // 3. Consommation moyenne réelle (sur prélèvements)
+    double sommeConso = 0.0;
+    int nbConso = 0;
+    QSqlQuery qConso(db);
+    qConso.prepare("SELECT newIndex - ancienIndex FROM Prelevement WHERE numCompteur IN (SELECT numCompteur FROM Abonnement WHERE idClient = ?)");
+    qConso.addBindValue(id.toInt());
+    if (qConso.exec()) {
+        while (qConso.next()) {
+            double c = qConso.value(0).toDouble();
+            if (c > 0) { sommeConso += c; nbConso++; }
+        }
+    }
+    double consoMoy = (nbConso > 0) ? (sommeConso / nbConso) : 0.0;
+    consoMoyenneLabel->setText(QString("Consommation moyenne: %1 m³").arg(consoMoy, 0, 'f', 1).replace(".", ","));
+
+    // 4. Statut des paiements (si une facture n'a pas de facturation, elle est impayée)
+    QString statut = "N/A";
+    int nbFactures = 0;
+    int nbFacturesPayees = 0;
+    QSqlQuery qFactList(db);
+    qFactList.prepare("SELECT idFacture FROM Facture WHERE idClient = ?");
+    qFactList.addBindValue(id.toInt());
+    if (qFactList.exec()) {
+        while (qFactList.next()) {
+            nbFactures++;
+            int idFacture = qFactList.value(0).toInt();
+            QSqlQuery qPayCheck(db);
+            qPayCheck.prepare("SELECT COUNT(*) FROM Facturation WHERE idFacture = ? AND mensualite > 0");
+            qPayCheck.addBindValue(idFacture);
+            if (qPayCheck.exec() && qPayCheck.next()) {
+                if (qPayCheck.value(0).toInt() > 0) nbFacturesPayees++;
+            }
+        }
+    }
+    if (nbFactures == 0) statut = "N/A";
+    else if (nbFacturesPayees == nbFactures) statut = "À jour";
+    else if (nbFacturesPayees < nbFactures) statut = "En retard";
+    statutPaiementLabel->setText("Statut des paiements: " + statut);
 }
 
 void ClientDetailWidget::onTabChanged(int index) {
@@ -130,16 +185,15 @@ void ClientDetailWidget::onTabChanged(int index) {
             // Rafraîchir les informations client si nécessaire
             break;
         case 1: // Onglet Abonnements
-            // Charger ou rafraîchir les abonnements
             loadAbonnementsFromDB();
             break;
         case 2: // Onglet Factures
-            // Charger ou rafraîchir les factures
             loadFacturesFromDB();
             break;
         case 3: // Onglet Historique
-            // Charger ou rafraîchir uniquement la consommation (plus de paiements)
             loadConsommationFromDB();
+            break;
+        default:
             break;
     }
 }
@@ -1249,10 +1303,104 @@ void ClientDetailWidget::loadFacturesFromDB() {
 
 
 void ClientDetailWidget::loadConsommationFromDB() {
-    // Pour l'instant, on utilise les données d'exemple du graphique
-    // À l'avenir, ces données proviendront de la base de données
-    // Calculer la consommation moyenne
-    double consoMoyenne = 11.6; // Exemple: moyenne des valeurs dans le graphique
+    // Récupérer la consommation réelle mensuelle pour l'année courante
+    int annee = QDate::currentDate().year();
+    double consoMois[12] = {0};
+    int nbMoisAvecConso = 0;
+    double totalConso = 0.0;
+    QSqlDatabase db = QSqlDatabase::database();
+    if (db.isOpen() && !clientId.isEmpty()) {
+        // Pour chaque compteur du client
+        QSqlQuery queryCompteurs(db);
+        queryCompteurs.prepare("SELECT numCompteur FROM Abonnement WHERE idClient = ?");
+        queryCompteurs.addBindValue(clientId.toInt());
+        if (queryCompteurs.exec()) {
+            while (queryCompteurs.next()) {
+                QString numCompteur = queryCompteurs.value(0).toString();
+                // Pour chaque mois de l'année courante
+                for (int mois = 1; mois <= 12; ++mois) {
+                    // Récupérer le premier prélèvement du mois
+                    QSqlQuery qFirst(db);
+                    qFirst.prepare("SELECT ancienIndex FROM Prelevement WHERE numCompteur = ? AND YEAR(dateprelevement) = ? AND MONTH(dateprelevement) = ? ORDER BY dateprelevement ASC LIMIT 1");
+                    qFirst.addBindValue(numCompteur);
+                    qFirst.addBindValue(annee);
+                    qFirst.addBindValue(mois);
+                    double premierAncien = 0.0;
+                    bool hasFirst = false;
+                    if (qFirst.exec() && qFirst.next()) {
+                        premierAncien = qFirst.value(0).toDouble();
+                        hasFirst = true;
+                    }
+                    // Récupérer le dernier prélèvement du mois
+                    QSqlQuery qLast(db);
+                    qLast.prepare("SELECT newIndex FROM Prelevement WHERE numCompteur = ? AND YEAR(dateprelevement) = ? AND MONTH(dateprelevement) = ? ORDER BY dateprelevement DESC LIMIT 1");
+                    qLast.addBindValue(numCompteur);
+                    qLast.addBindValue(annee);
+                    qLast.addBindValue(mois);
+                    double dernierNew = 0.0;
+                    bool hasLast = false;
+                    if (qLast.exec() && qLast.next()) {
+                        dernierNew = qLast.value(0).toDouble();
+                        hasLast = true;
+                    }
+                    if (hasFirst && hasLast) {
+                        double consommation = dernierNew - premierAncien;
+                        if (consommation < 0) consommation = 0.0;
+                        consoMois[mois-1] += consommation;
+                    }
+                }
+            }
+        }
+        // Calcul de la moyenne et du total
+        for (int m = 0; m < 12; ++m) {
+            if (consoMois[m] > 0.0) {
+                nbMoisAvecConso++;
+                totalConso += consoMois[m];
+            }
+        }
+    }
+    double consoMoyenne = (nbMoisAvecConso > 0) ? (totalConso / nbMoisAvecConso) : 0.0;
     consoMoyenneLabel->setText(QString("Consommation moyenne: %1 m³").arg(consoMoyenne, 0, 'f', 1).replace(".", ","));
+
+    // Mettre à jour le graphique
+    QBarSet *barSet = new QBarSet("");
+    barSet->setColor(QColor("#00cfff"));
+    barSet->setLabelColor(QColor("#ffd23f"));
+    barSet->setLabelFont(QFont("Arial", 13, QFont::Bold));
+    for (int m = 0; m < 12; ++m) *barSet << consoMois[m];
+    QBarSeries *series = new QBarSeries();
+    series->append(barSet);
+    series->setBarWidth(0.7);
+    series->setLabelsPosition(QAbstractBarSeries::LabelsInsideEnd);
+    series->setLabelsVisible(true);
+    QChart *chart = new QChart();
+    chart->addSeries(series);
+    chart->setBackgroundBrush(QBrush(QColor("#31463f")));
+    chart->setAnimationOptions(QChart::NoAnimation);
+    chart->legend()->setVisible(false);
+    chart->setMargins(QMargins(30, 30, 30, 30));
+    QStringList categories = {"Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"};
+    QBarCategoryAxis *axisX = new QBarCategoryAxis();
+    axisX->append(categories);
+    axisX->setLabelsColor(QColor("#ffd23f"));
+    axisX->setLabelsFont(QFont("Arial", 14, QFont::Bold));
+    axisX->setGridLineVisible(false);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+    QValueAxis *axisY = new QValueAxis();
+    axisY->setTitleText("Consommation (m³)");
+    axisY->setRange(0, std::max(20.0, *std::max_element(consoMois, consoMois+12) + 2));
+    axisY->setTickCount(5);
+    axisY->setLabelFormat("%d");
+    axisY->setTitleBrush(QBrush(QColor("#ffd23f")));
+    axisY->setLabelsColor(QColor("#ffd23f"));
+    axisY->setLabelsFont(QFont("Arial", 14, QFont::Bold));
+    axisY->setGridLineColor(QColor("#ffd23f"));
+    axisY->setGridLineVisible(true);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisY);
+    if (consommationChartView) {
+        consommationChartView->setChart(chart);
+    }
     emit consommationAjouteSignal();
 }

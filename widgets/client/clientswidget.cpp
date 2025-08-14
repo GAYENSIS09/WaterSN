@@ -45,24 +45,22 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     searchLineEdit->setMinimumWidth(160);
     searchLineEdit->setStyleSheet("background: #22332d; border: none; border-radius: 6px; padding: 6px 10px; font-size: 14px; color: #e6e6e6;");
     filterLayout->addWidget(searchLineEdit);
-    collectiviteCombo = new QComboBox;
-    collectiviteCombo->addItem("Tous"); collectiviteCombo->addItem("Collectivité 1"); collectiviteCombo->addItem("Collectivité 2");
     consommationCombo = new QComboBox;
-    consommationCombo->addItem("Toutes consommations"); consommationCombo->addItem("0-10 m³"); consommationCombo->addItem("10-50 m³"); consommationCombo->addItem(">50 m³");
+    consommationCombo->addItem("Toutes consommations");
+    consommationCombo->addItem("0-10 m³");
+    consommationCombo->addItem("10-50 m³");
+    consommationCombo->addItem(">50 m³");
     QString comboStyle = "QComboBox { background: #22332d; color: #e6e6e6; border-radius: 6px; padding: 4px 12px; font-size: 14px; min-width: 80px; } QComboBox QAbstractItemView { background: #31463f; color: #e6e6e6; border-radius: 6px; }";
-    collectiviteCombo->setStyleSheet(comboStyle);
     consommationCombo->setStyleSheet(comboStyle);
-    filterLayout->addWidget(collectiviteCombo);
     filterLayout->addWidget(consommationCombo);
 
     // Graphe d'évolution des clients (style dashboard)
+    // --- Graphe évolution clients (données réelles) ---
     QLineSeries* series = new QLineSeries();
     series->setName("Clients");
     series->setColor(QColor("#42a5f5"));
     series->setPointsVisible(true);
     QStringList moisLabels = {"Janv", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sept", "Oct", "Nov", "Déc"};
-    for (int m = 1; m <= 12; ++m)
-        series->append(m, 10 + QRandomGenerator::global()->bounded(30));
     QChart* chart = new QChart();
     chart->addSeries(series);
     chart->setTitle("Évolution des clients par mois");
@@ -108,6 +106,22 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     chartView->setMinimumHeight(420);
     chartView->setStyleSheet("background: #31463f; border-radius: 16px; padding: 8px; border: 1px solid #22332d;");
 
+    // Fonction de mise à jour du graphe avec les vraies données
+    auto updateClientsEvolutionChart = [series]() {
+        series->clear();
+        int currentYear = QDate::currentDate().year();
+        for (int m = 1; m <= 12; ++m) {
+            QSqlQuery q;
+            q.prepare("SELECT COUNT(*) FROM Client WHERE MONTH(date_inscription) = ? AND YEAR(date_inscription) = ?");
+            q.addBindValue(m);
+            q.addBindValue(currentYear);
+            int nb = 0;
+            if (q.exec() && q.next()) nb = q.value(0).toInt();
+            series->append(m, nb);
+        }
+    };
+    updateClientsEvolutionChart();
+
     // Table des abonnés (QTableView + QStandardItemModel)
     clientsTable = new QTableView;
     clientsTable->setMinimumHeight(340); // Hauteur du conteneur de la table
@@ -121,14 +135,43 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     // Modèle de données basé sur la base de données
     QStandardItemModel* model = new QStandardItemModel(this);
     model->setHorizontalHeaderLabels({"ID", "Nom", "Prénom", "Adresse", "Téléphone"});
-    
     // Charger les clients depuis la base de données
     loadClientsFromDatabase(model);
-    
     clientsTable->setModel(model);
     clientsTable->horizontalHeader()->setVisible(true);
     clientsTable->horizontalHeader()->setStretchLastSection(true);
     clientsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    // --- Filtrage combiné nom + consommation moyenne (calcul dynamique) ---
+    auto applyFilters = [this]() {
+        QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
+        if (!model) return;
+        QString text = searchLineEdit->text().trimmed().toLower();
+        QString choix = consommationCombo->currentText();
+        for (int row = 0; row < model->rowCount(); ++row) {
+            bool matchNom = model->item(row, 1)->text().toLower().contains(text);
+            // Calcul dynamique de la moyenne
+            QString idClient = model->item(row, 0)->text();
+            double moyenne = 0; int n = 0;
+            QSqlQuery q("SELECT (newIndex - ancienIndex) FROM Prelevement WHERE idClient = ?");
+            q.addBindValue(idClient);
+            while (q.exec() && q.next()) {
+                double c = q.value(0).toDouble();
+                if (c > 0) { moyenne += c; n++; }
+            }
+            if (n > 0) moyenne /= n;
+            else moyenne = 0;
+            bool matchConso = true;
+            if (choix == "0-10 m³") matchConso = (moyenne > 0 && moyenne <= 10);
+            else if (choix == "10-50 m³") matchConso = (moyenne > 10 && moyenne <= 50);
+            else if (choix == ">50 m³") matchConso = (moyenne > 50);
+            // "Toutes consommations" => matchConso = true
+            bool visible = (matchNom || text.isEmpty()) && matchConso;
+            clientsTable->setRowHidden(row, !visible);
+        }
+    };
+    connect(searchLineEdit, &QLineEdit::textChanged, this, [applyFilters](const QString&) { applyFilters(); });
+    connect(consommationCombo, &QComboBox::currentTextChanged, this, [applyFilters](const QString&) { applyFilters(); });
     // Ouvrir les détails du client sur double-clic ou touche Entrée
     connect(clientsTable, &QTableView::doubleClicked, this, [this](const QModelIndex& index){
         int row = index.row();
@@ -211,14 +254,15 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
 
     // Rafraîchir la liste des clients à chaque sélection de l'onglet
     connect(tabWidget, &QTabWidget::currentChanged, this, [=](int index){
-        if (index == 1) { // Onglet "Liste des clients"
+        if (index == 0) { // Onglet "Évolution"
+            updateClientsEvolutionChart();
+        } else if (index == 1) { // Onglet "Liste des clients"
             QStandardItemModel* model = qobject_cast<QStandardItemModel*>(clientsTable->model());
             if (model) {
                 model->removeRows(0, model->rowCount());
                 loadClientsFromDatabase(model);
             }
         }
-        // Si tu ajoutes d'autres onglets, ajoute leur refresh ici
     });
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -237,9 +281,6 @@ ClientsWidget::ClientsWidget(QWidget* parent) : QWidget(parent) {
     // Nous devons surcharger resizeEvent dans la classe ClientsWidget
     // Le code est dans le fichier .h et la méthode resizeEvent est implémentée plus bas
 }
-
-
-// ...existing code...
 
 bool ClientsWidget::eventFilter(QObject* obj, QEvent* event) {
     if (obj == clientsTable && event->type() == QEvent::KeyPress) {

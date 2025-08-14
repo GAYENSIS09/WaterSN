@@ -141,7 +141,7 @@ AuthDialog::AuthDialog(QWidget* parent)
 
     // Appliquer le QSS
     qDebug() << "[AuthDialog] Current working dir:" << QDir::currentPath();
-    QFile styleFile("widgets/auth/authdialog.qss");
+    QFile styleFile(":/qss/widgets/auth/authdialog.qss");
     if (!styleFile.open(QFile::ReadOnly)) {
         qWarning("[AuthDialog] Impossible d'ouvrir le fichier QSS widgets/auth/authdialog.qss");
     } else {

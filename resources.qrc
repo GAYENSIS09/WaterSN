@@ -7,7 +7,6 @@
     <file>icons/material/group.svg</file>
     <file>icons/material/speedometer.svg</file>
     <file>icons/material/settings.svg</file>
-    <file>icons/material/visibility.svg</file>
     <file>icons/material/warning.svg</file>
     <file>icons/material/money_off.svg</file>
     <file>icons/material/water_drop.svg</file>
@@ -19,4 +18,14 @@
     <file>icons/material/visibility.svg</file>
     <file>icons/material/delete.svg</file>
   </qresource>
+    <qresource prefix="/ui">
+      <file>widgets/auth/authdialog.ui</file>
+      <file>widgets/auth/initdialog.ui</file>
+      <file>watersn.ui</file>
+    </qresource>
+    <qresource prefix="/qss">
+      <file>widgets/auth/authdialog.qss</file>
+      <file>widgets/auth/initdialog.qss</file>
+      <file>widgets/auth/resetpassworddialog.qss</file>
+    </qresource>
 </RCC>
