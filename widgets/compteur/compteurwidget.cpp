@@ -431,11 +431,15 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
     prelevDateEdit->setCalendarPopup(true);
     // QComboBox pour compteur transféré
     QComboBox *prelevCompteurCombo = new QComboBox(prelevFormWidget);
-    QSqlQuery queryCompteursPrelev("SELECT numCompteur FROM Compteur WHERE attributComp = 'Transféré'");
-    while (queryCompteursPrelev.next())
-    {
-        prelevCompteurCombo->addItem(queryCompteursPrelev.value(0).toString());
-    }
+    // Fonction pour rafraîchir la liste des compteurs transférés
+    auto updatePrelevCompteurCombo = [prelevCompteurCombo]() {
+        prelevCompteurCombo->clear();
+        QSqlQuery queryCompteursPrelev("SELECT numCompteur FROM Compteur WHERE attributComp = 'Transféré'");
+        while (queryCompteursPrelev.next()) {
+            prelevCompteurCombo->addItem(queryCompteursPrelev.value(0).toString());
+        }
+    };
+    updatePrelevCompteurCombo();
     // Ancien index (lecture seule)
     QLineEdit *prelevAncienIndexEdit = new QLineEdit(prelevFormWidget);
     prelevAncienIndexEdit->setReadOnly(true);
@@ -714,32 +718,54 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
     // Filtrage dynamique des compteurs et factures selon le client sélectionné
     auto updateCompteurEtFactureCombo = [=]() {
         QVariant idClient = idClientCombo->currentData();
-        // Compteurs
+        // Compteurs : uniquement ceux transférés ET ayant au moins une facture
         numCompteurCombo->clear();
         QSqlQuery queryCompteurs;
-        queryCompteurs.prepare("SELECT numCompteur FROM Abonnement WHERE idClient = ?");
+        queryCompteurs.prepare("SELECT c.numCompteur FROM Compteur c INNER JOIN Abonnement a ON c.numCompteur = a.numCompteur WHERE a.idClient = ? AND c.attributComp = 'Transféré' AND EXISTS (SELECT 1 FROM Facture f WHERE f.numCompteur = c.numCompteur)");
         queryCompteurs.addBindValue(idClient);
         if (queryCompteurs.exec()) {
             while (queryCompteurs.next()) {
                 numCompteurCombo->addItem(queryCompteurs.value(0).toString());
             }
         }
-        // Factures
+        // Factures : initialement, on vide la liste
         idFactureCombo->clear();
-        QSqlQuery queryFactures;
-        queryFactures.prepare("SELECT idFacture FROM Facture WHERE idClient = ?");
-        queryFactures.addBindValue(idClient);
-        if (queryFactures.exec()) {
-            while (queryFactures.next()) {
-                idFactureCombo->addItem(queryFactures.value(0).toString());
+        // Si un compteur est déjà sélectionné, on filtre directement
+        QString numCompteurSel = numCompteurCombo->currentText();
+        if (!numCompteurSel.isEmpty()) {
+            QSqlQuery queryFactures;
+            queryFactures.prepare("SELECT idFacture FROM Facture WHERE idClient = ? AND numCompteur = ?");
+            queryFactures.addBindValue(idClient);
+            queryFactures.addBindValue(numCompteurSel);
+            if (queryFactures.exec()) {
+                while (queryFactures.next()) {
+                    idFactureCombo->addItem(queryFactures.value(0).toString());
+                }
             }
         }
     };
-        QObject::connect(idClientCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), factureFormWidget, updateCompteurEtFactureCombo);
-        // Initialiser les combos au démarrage selon le client sélectionné
-        if (idClientCombo->count() > 0) {
-            updateCompteurEtFactureCombo();
+    QObject::connect(idClientCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), factureFormWidget, updateCompteurEtFactureCombo);
+    // Initialiser les combos au démarrage selon le client sélectionné
+    if (idClientCombo->count() > 0) {
+        updateCompteurEtFactureCombo();
+    }
+
+    // Connexion : quand le compteur change, on filtre les factures
+    QObject::connect(numCompteurCombo, &QComboBox::currentTextChanged, factureFormWidget, [=](const QString &numCompteurSel){
+        idFactureCombo->clear();
+        QVariant idClient = idClientCombo->currentData();
+        if (!numCompteurSel.isEmpty() && idClient.isValid()) {
+            QSqlQuery queryFactures;
+            queryFactures.prepare("SELECT idFacture FROM Facture WHERE idClient = ? AND numCompteur = ?");
+            queryFactures.addBindValue(idClient);
+            queryFactures.addBindValue(numCompteurSel);
+            if (queryFactures.exec()) {
+                while (queryFactures.next()) {
+                    idFactureCombo->addItem(queryFactures.value(0).toString());
+                }
+            }
         }
+    });
     // QLineEdit pour mensualite
     QLineEdit *mensualiteEdit = new QLineEdit(factureFormWidget);
     QPushButton *factureFormAddBtn = new QPushButton("Ajouter");
@@ -865,35 +891,40 @@ CompteurWidget::CompteurWidget(Controller *controller, QWidget *parent)
 
     // ICI : connexion du signal
     connect(tabWidget, &QTabWidget::currentChanged, this, [=](int index)
-            {
-    qDebug() << "[mlog] Changement d'onglet : index=" << index;
-    if (index == 0) {
-        qDebug() << "[mlog] Appel chargerListeCompteurs()";
-        try {
-            chargerListeCompteurs();
-            qDebug() << "[mlog] chargerListeCompteurs() OK";
-        } catch (...) {
-            qDebug() << "[mlog] Exception dans chargerListeCompteurs()";
+    {
+        qDebug() << "[mlog] Changement d'onglet : index=" << index;
+        if (index == 0) {
+            qDebug() << "[mlog] Appel chargerListeCompteurs()";
+            try {
+                chargerListeCompteurs();
+                qDebug() << "[mlog] chargerListeCompteurs() OK";
+            } catch (...) {
+                qDebug() << "[mlog] Exception dans chargerListeCompteurs()";
+            }
         }
-    }
-    else if (index == 1) {
-        qDebug() << "[mlog] (avant appel) chargerListePrelevements()";
-        try {
-            chargerListePrelevements();
-            qDebug() << "[mlog] chargerListePrelevements() OK";
-        } catch (...) {
-            qDebug() << "[mlog] Exception dans chargerListePrelevements()";
+        else if (index == 1) {
+            qDebug() << "[mlog] (avant appel) chargerListePrelevements()";
+            try {
+                chargerListePrelevements();
+                qDebug() << "[mlog] chargerListePrelevements() OK";
+            } catch (...) {
+                qDebug() << "[mlog] Exception dans chargerListePrelevements()";
+            }
+            // Rafraîchir la liste des compteurs transférés dans le formulaire d'ajout de prélèvement
+            updatePrelevCompteurCombo();
+            if (prelevCompteurCombo->count() > 0)
+                emit prelevCompteurCombo->currentTextChanged(prelevCompteurCombo->currentText());
         }
-    }
-    else if (index == 2) {
-        qDebug() << "[mlog] Appel chargerListeFactures()";
-        try {
-            chargerListeFactures();
-            qDebug() << "[mlog] chargerListeFactures() OK";
-        } catch (...) {
-            qDebug() << "[mlog] Exception dans chargerListeFactures()";
+        else if (index == 2) {
+            qDebug() << "[mlog] Appel chargerListeFactures()";
+            try {
+                chargerListeFactures();
+                qDebug() << "[mlog] chargerListeFactures() OK";
+            } catch (...) {
+                qDebug() << "[mlog] Exception dans chargerListeFactures()";
+            }
         }
-    } });
+    });
 
     // Premier chargement
     chargerListeCompteurs();

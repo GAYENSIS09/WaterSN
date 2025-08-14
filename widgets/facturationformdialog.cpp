@@ -58,6 +58,24 @@ void FacturationFormDialog::connectSignals() {
             setClients({});
         }
     });
+
+    // Ajout : quand le client change, on vide la liste des factures tant qu'aucun compteur n'est sélectionné
+    connect(clientCombo, &QComboBox::currentTextChanged, this, [this](const QString& /*nomClient*/){
+        // Récupérer l'id du client sélectionné
+        int idClient = clientCombo->currentData().toInt();
+        // Requête pour ne récupérer que les compteurs du client ayant au moins une facture
+        QSqlQuery query;
+        query.prepare("SELECT c.numCompteur FROM Compteur c WHERE c.idClient = ? AND EXISTS (SELECT 1 FROM Facture f WHERE f.numCompteur = c.numCompteur)");
+        query.addBindValue(idClient);
+        QStringList compteurs;
+        if (query.exec()) {
+            while (query.next()) {
+                compteurs << query.value(0).toString();
+            }
+        }
+        setCompteurs(compteurs);
+        setFactures({});
+    });
     connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 }
